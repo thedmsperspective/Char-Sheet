@@ -10,6 +10,7 @@ import * as O from './options.js';
 import * as T from './tables.js';
 import * as CR from './creatures.js';
 import * as INF from './infuse.js';
+import * as WM from './mastery.js';
 import { renderThumb, openInkEditor } from './ink.js';
 
 let ctx; // { save(c), toast(msg), rerender() }
@@ -248,12 +249,31 @@ function exhaustionText(c) {
 }
 const EXHAUSTION = ['', 'Disadvantage on ability checks', 'Speed halved', 'Disadvantage on attack rolls and saving throws', 'Hit point maximum halved', 'Speed reduced to 0', 'Death'];
 
+// Weapon Mastery (2024): the kinds of weapon this character has chosen, and each one's property
+function masteryBox(c) {
+  if (!WM.has(c)) return '';
+  const n = WM.slots(c), picks = WM.chosen(c), swap = c.mastery?.swap;
+  const chip = name => { const w = L.findByName('item', name), p = WM.propOf(w); return `<button class="mchip" type="button" data-act="mprop" data-p="${esc(p)}" title="${esc(WM.PROPS[p] || '')}"><b>${esc(name)}</b> ${esc(p)}</button>`; };
+  return `<div class="masterybox"><div class="mhead"><span class="lbl">Weapon Mastery</span><span class="mcount">${picks.length} of ${n}</span>
+      <button class="linkbtn" type="button" data-act="mastery">${picks.length < n ? 'Choose weapons' : isPlayer() && !swap ? 'See choices' : 'Change'}</button></div>
+    <div class="mchips">${picks.map(chip).join('') || '<span class="empty">No weapons chosen yet.</span>'}</div>
+    ${swap && picks.length >= n ? `<small class="hint">After your long rest you can change ${swap === 'all' ? 'your weapon choices' : 'one weapon choice'}.</small>` : ''}
+    ${WM.tactical(c) ? '<small class="hint">Tactical Master: when you attack with one of these, you can use Push, Sap or Slow instead of its own property.</small>' : ''}</div>`;
+}
+function masteryTag(c, a) {
+  const m = WM.forAttack(c, a); if (!m) return '';
+  return `<span class="mtag" title="${esc(m.text)}">${esc(m.prop)}${m.dc ? ` DC ${m.dc}` : ''}${m.graze != null ? ` ${m.graze}` : ''}</span>`;
+}
+function masteryLine(c, a) {
+  const m = WM.forAttack(c, a); if (!m) return '';
+  return `<div class="hf wide mline"><span class="lbl">Mastery: ${esc(m.prop)}${m.dc ? ` (DC ${m.dc})` : ''}${m.graze != null ? ` (${m.graze} damage on a miss)` : ''}</span><p>${esc(m.text)}</p></div>`;
+}
 function attacks(c) {
   const rows = (c.attacks || []).map((a, i) => `
     <details class="atk" ${a._new ? 'open' : ''}>
-      <summary><span class="an">${esc(a.name) || 'New attack'}</span><b>${calc('atkbonus', i)}</b><span class="atkdmgtxt">${calc('atkdmg', i)}</span></summary>
-      <div class="atkedit">
-        <label class="hf"><span class="lbl">Name</span><input class="f" data-k="attacks.${i}.name" value="${esc(a.name)}" autocomplete="off"></label>
+      <summary><span class="an">${esc(a.name) || 'New attack'}${masteryTag(c, a)}</span><b>${calc('atkbonus', i)}</b><span class="atkdmgtxt">${calc('atkdmg', i)}</span></summary>
+      <div class="atkedit">${masteryLine(c, a)}
+        <label class="hf"><span class="lbl">Name</span><input class="f" data-k="attacks.${i}.name" value="${esc(a.name)}" autocomplete="off"${WM.has(c) ? ' data-rerender' : ''}></label>
         <label class="hf"><span class="lbl">Ability</span>${sel(c, `attacks.${i}.abil`, [['str', 'Strength'], ['dex', 'Dexterity'], ['finesse', 'Finesse (best of Str/Dex)'], ['spell', 'Spellcasting ability'], ['con', 'Constitution'], ['int', 'Intelligence'], ['wis', 'Wisdom'], ['cha', 'Charisma'], ['', 'None']])}</label>
         <label class="hf"><span class="lbl">Extra to-hit</span><input class="f n" data-k="attacks.${i}.bonus" data-type="num" inputmode="numeric" value="${esc(a.bonus)}"></label>
         <label class="hf"><span class="lbl">Damage dice</span><input class="f" data-k="attacks.${i}.dmg" value="${esc(a.dmg)}" placeholder="1d8" autocomplete="off"></label>
@@ -263,7 +283,7 @@ function attacks(c) {
         <button class="linkbtn danger" type="button" data-act="rowdel" data-list="attacks" data-i="${i}">Remove attack</button>
       </div>
     </details>`).join('');
-  return panel('Attacks &amp; spellcasting', `${remindBox(c, 'attacks')}
+  return panel('Attacks &amp; spellcasting', `${remindBox(c, 'attacks')}${masteryBox(c)}
     <div data-list="attacks" class="atklist">${rows || '<p class="empty">No attacks yet.</p>'}</div>
     <button class="linkbtn" type="button" data-act="rowadd" data-list="attacks">Add an attack</button>
     <div class="spellbox">
@@ -1179,6 +1199,8 @@ function act(b, c, root) {
     case 'imgdel': setPath(c, d.p, ''); return touch(d.p);
     case 'abil': return ctx.openAbility(d.a);
     case 'scores': return ctx.openScores();
+    case 'mastery': return ctx.mastery();
+    case 'mprop': return ctx.masteryInfo(b.dataset.p);
     case 'eqpick': return ctx.pickEquipment(d.cat);
     case 'miattack': case 'miwear': { const m = (c.magicItems || []).find(x => x.cid === d.cid); if (m) ctx.useMagicGear(d.act, m); return; }
     case 'eqwear': case 'eqshield': case 'eqattack': { const r = c.inv[d.cat]?.[Number(d.i)]; if (r) ctx.useEquipment(d.act, r); return; }

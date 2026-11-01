@@ -911,3 +911,17 @@ html[data-red="1"] .syncbtn .dot{background:#fff}
 .tpbtns .btn[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
 .sharedbox{margin:0 0 12px;padding:12px 14px;border:1px solid var(--accent);border-radius:12px;background:var(--raise)}
 .sharedbox p{margin:0 0 8px}
+/* Weapon Mastery (2024) */
+.masterybox{border:1px solid var(--line);border-radius:8px;background:var(--raise);padding:8px 10px;margin:0 0 8px}
+.masterybox .mhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.masterybox .mcount{color:var(--muted);font-size:13px}
+.masterybox .mhead .linkbtn{margin-left:auto}
+.mchips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.mchip{border:1px solid var(--line);border-radius:999px;padding:4px 10px;background:transparent;color:var(--text);font-size:13px;cursor:pointer}
+.mchip b{font-weight:600}
+.mtag{display:inline-block;margin-left:6px;font-size:11px;padding:1px 7px;border-radius:999px;border:1px solid var(--accent);color:var(--accent);vertical-align:middle;white-space:nowrap}
+.mline p{margin:2px 0 0;font-size:13px;color:var(--muted)}
+.mlist{display:grid;gap:4px;max-height:52vh;overflow:auto;margin:8px 0}
+.mlist label{display:flex;align-items:center;gap:8px;padding:4px 2px}
+.mlist label.off{opacity:.45}
+.mlist .mp{margin-left:auto;font-size:12px;color:var(--muted)}

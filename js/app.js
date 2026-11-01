@@ -12,6 +12,7 @@ import * as O from './options.js';
 import * as B from './bridge.js';
 import * as CR from './creatures.js';
 import * as INF from './infuse.js';
+import * as WM from './mastery.js';
 import { isDmEmail } from './dm.js';
 import { fmt, tabIndent } from './text.js';
 
@@ -536,11 +537,48 @@ function longRest() {
     M.restoreAll(c);
     c.ip = 'ready';
     c.rage = { on: false, used: 0 };
+    if (WM.has(c)) { c.mastery = { ...(c.mastery || { picks: [] }), swap: WM.swapAfterRest(c) }; stamp(c, 'mastery'); } // weapon drills
     for (const p of ['classes', 'limited', 'death', 'exhaustion', 'magic', 'ip', 'rage']) stamp(c, p);
     save(c);
     $('#actDlg').close();
     toast('Long rest done. You wake refreshed.');
   }, e => { if (e.target.matches('[data-ate]')) st.ate = e.target.checked; });
+}
+
+/* ---------- Weapon Mastery (2024) ---------- */
+function masteryInfo(p) {
+  if (!WM.PROPS[p]) return;
+  actDialog(() => `<h2>${esc(p)}</h2><p>${esc(WM.PROPS[p])}</p><div class="row end"><button class="btn primary" type="button" data-close>Got it</button></div>`);
+}
+// Choose the kinds of weapon. A player fills empty choices freely; changing a choice takes a long rest (Barbarians and
+// Fighters change one, Paladins, Rangers and Rogues any). The DM can change them any time.
+function masteryDialog() {
+  const c = state.cur; if (!c || !WM.has(c)) return;
+  const n = WM.slots(c), before = WM.chosen(c), swap = c.mastery?.swap || '';
+  const st = { picks: new Set(before) };
+  const list = WM.weapons().filter(w => WM.canChoose(c, w, x => weaponProf(c, x)));
+  const removed = () => before.filter(x => !st.picks.has(x)).length;
+  const limit = () => (isDm() || before.length < n ? Infinity : swap === 'all' ? Infinity : swap === 'one' ? 1 : 0);
+  const draw = () => {
+    const full = st.picks.size >= n, r = removed();
+    return `<h2>Weapon Mastery</h2>
+      <p class="hint">Choose ${n} kinds of weapon. You can use the mastery property of each when you attack with it. ${WM.sources(c).map(x => x.cls).join(', ')}${WM.sources(c).some(x => x.cls === 'Barbarian') && !WM.sources(c).some(x => x.cls === 'Fighter') ? ': melee weapons only' : ''}.
+      ${!isDm() && before.length >= n ? (swap === 'all' ? ' After your long rest you can change any of them.' : swap === 'one' ? ' After your long rest you can change one of them.' : ' You can change these after your next long rest.') : ''}</p>
+      <div class="mlist">${list.map(w => { const on = st.picks.has(w.name), blocked = !on && full; const p = WM.propOf(w); return `<label class="${blocked ? 'off' : ''}"><input type="checkbox" data-mw="${esc(w.name)}" ${on ? 'checked' : ''} ${blocked ? 'disabled' : ''}><span>${esc(w.name)}</span><span class="mp" title="${esc(WM.PROPS[p] || '')}">${esc(p)}</span></label>`; }).join('') || '<p class="empty">No weapons you can choose yet. Check your weapon proficiencies.</p>'}</div>
+      <p class="hint">${st.picks.size} of ${n} chosen.${r > limit() ? ` <b>You can only change ${limit() ? 'one' : 'them after a long rest'}.</b>` : ''}</p>
+      <div class="row end"><button class="btn ghost" type="button" data-close>Cancel</button><button class="btn primary" type="button" data-mgo ${r > limit() ? 'disabled' : ''}>Save</button></div>`;
+  };
+  actDialog(draw, e => {
+    if (!e.target.closest('[data-mgo]')) return;
+    const r = removed();
+    c.mastery = { picks: [...st.picks].slice(0, n), swap: r && !isDm() ? '' : swap };
+    stamp(c, 'mastery'); save(c); $('#actDlg').close(); renderSheet();
+    toast('Weapon Mastery saved.');
+  }, (e, paint) => {
+    const b = e.target.closest('[data-mw]'); if (!b || e.type !== 'change') return;
+    if (b.checked) st.picks.add(b.dataset.mw); else st.picks.delete(b.dataset.mw);
+    paint();
+  });
 }
 
 function castSpell(id) {
@@ -973,13 +1011,13 @@ function addWeaponAttack(c, it, row) {
   const monk = R.F.classLevel(c, 'Monk') > 0 && w.monk; // Martial Arts: Dexterity works with monk weapons
   const abil = props.includes('finesse') || monk ? 'finesse' : w.ranged ? 'dex' : 'str';
   const notes = [w.props, w.range ? `range ${w.range} ft` : '', w.versatile ? `${w.versatile} two-handed` : ''].filter(Boolean).join(' · ');
-  c.attacks = [...(c.attacks || []), { id: uid(), name: it.name, abil, prof: weaponProf(c, it), bonus: 0, dmg: w.dmg || '', addMod: !!w.dmg, type: w.type || '', notes, ranged: !!w.ranged, eqRow: row.id }];
+  c.attacks = [...(c.attacks || []), { id: uid(), name: it.name, base: it.baseName || it.name, abil, prof: weaponProf(c, it), bonus: 0, dmg: w.dmg || '', addMod: !!w.dmg, type: w.type || '', notes, ranged: !!w.ranged, eqRow: row.id }];
   stamp(c, 'attacks');
 }
 // Magic weapons and armor: the base item's numbers from the equipment list, under the magic item's name
 function useMagicGear(act, m) {
   const c = state.cur, base = L.findByName('item', m.base); if (!base) return;
-  if (act === 'miattack') { addWeaponAttack(c, { ...base, name: m.name }, { id: '' }); c.attacks[c.attacks.length - 1].miCid = m.cid; delete c.attacks[c.attacks.length - 1].eqRow; stamp(c, 'attacks'); save(c); renderSheet(); toast(`${m.name} is in your attacks.`); return; }
+  if (act === 'miattack') { addWeaponAttack(c, { ...base, name: m.name, baseName: base.name }, { id: '' }); c.attacks[c.attacks.length - 1].miCid = m.cid; delete c.attacks[c.attacks.length - 1].eqRow; stamp(c, 'attacks'); save(c); renderSheet(); toast(`${m.name} is in your attacks.`); return; }
   const a = c.ac, key = `mi:${m.cid}`;
   if (m.base === 'Shield') {
     if (a.shieldFrom === key && Number(a.shield)) { a.shield = 0; a.shieldFrom = ''; toast('Shield put away.'); }
@@ -1206,7 +1244,7 @@ const sheetCtx = {
   themeChanged, closeLook, openAbility, openAc,
   picked, viewEntry,
   isPlayer: () => !isDm(),
-  levelUp, shortRest, longRest, openScores, pickEquipment, useEquipment, useMagicGear, cast: castSpell, spellFilter: 'mine', pickOption, addCreature, infuse: infuseDialog,
+  levelUp, shortRest, longRest, openScores, mastery: masteryDialog, masteryInfo, pickEquipment, useEquipment, useMagicGear, cast: castSpell, spellFilter: 'mine', pickOption, addCreature, infuse: infuseDialog,
   // send a change right away (a turn button), once the save has landed
   syncSoon: () => setTimeout(async () => { await flush(); sync.syncNow({ quiet: true }); }, 300),
   liveSend: (key, req) => sync.live().then(L => L?.cput(key, 'req', req)),
