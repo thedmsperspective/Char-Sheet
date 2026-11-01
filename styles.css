@@ -76,7 +76,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 small{font-size:.8em}
 
 /* ---------- frame ---------- */
-.app{display:grid;grid-template-rows:auto 1fr;height:100dvh;position:relative}
+.app{display:grid;grid-template-rows:auto 1fr;grid-template-columns:minmax(0,1fr);height:100dvh;position:relative}
 .topbar{position:relative;z-index:3;display:flex;align-items:center;gap:8px;padding:8px 12px;padding-top:max(8px,env(safe-area-inset-top));background:var(--panel-solid);border-bottom:1px solid var(--line)}
 .topbar h1{font:700 1.3rem/1.1 var(--head);margin:0 8px 0 2px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:32vw}
 .spacer{flex:1}
@@ -925,3 +925,17 @@ html[data-red="1"] .syncbtn .dot{background:#fff}
 .mlist label{display:flex;align-items:center;gap:8px;padding:4px 2px}
 .mlist label.off{opacity:.45}
 .mlist .mp{margin-left:auto;font-size:12px;color:var(--muted)}
+
+/* ---------- narrow phones, and phones with large text: nothing runs off the right edge ---------- */
+@media (max-width:700px){
+  .pages{overflow-x:auto;min-width:0;max-width:100%;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .pages::-webkit-scrollbar{display:none}
+  .pages button{flex:1 0 auto}
+  .page,.sheethead,.cols,.col,.headgrid,.clsrow{min-width:0}
+}
+@media (max-width:440px){
+  .abilities{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .coins{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .atkedit,.edgrid,.spellbox,.abdc{grid-template-columns:1fr}
+  .topbar h1{max-width:none}
+}

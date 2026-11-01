@@ -125,7 +125,7 @@ function pickInput(path, value, ph, list, id) {
   // and once chosen it's locked (the DM can still change it)
   const choose = isPlayer() && !value && CHOOSE_ONCE.includes(path);
   if (isPlayer() && !choose) return `<span class="pick">${ro(value, ph === 'Pick or type' ? 'Your DM sets this' : ph)}${info}</span>`;
-  if (choose) return `<span class="pick"><input class="f" data-k="${path}" data-pick data-choose list="${list}" value="" placeholder="Choose from the list" autocomplete="off" spellcheck="false"></span>`;
+  if (choose) return `<span class="pick"><input class="f" data-k="${path}" data-pick data-choose list="${list}" value="" placeholder="Choose…" autocomplete="off" spellcheck="false"></span>`;
   return `<span class="pick"><input class="f" data-k="${path}" data-pick list="${list}" value="${esc(value)}" placeholder="${esc(ph)}" autocomplete="off" spellcheck="false">${id ? `<button class="info" type="button" data-act="libview" data-id="${id}" aria-label="Read ${esc(value)}">i</button>` : ''}</span>`;
 }
 function datalists(c) {
