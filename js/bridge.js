@@ -274,6 +274,14 @@ export async function runBridge(io) {
       const v = V.miView(sources.mi, seed, holder);
       sources.miCounts[c.id] = v ? { held: v.held, shown: v.items.length } : null;
       put('magicItems', v ? v.items : []);
+      // a magic item bought in a shop sat in the inventory as a placeholder: its real card is here now, so it goes
+      if (v) {
+        const names = v.items.map(m => String(m.name || '').toLowerCase());
+        for (const [k, rows] of Object.entries(c.inv || {})) {
+          const keep = (rows || []).filter(r => !(r.fromShop && names.some(n => n === String(r.name).toLowerCase() || n.startsWith(String(r.name).toLowerCase()))));
+          if (keep.length !== (rows || []).length) { c.inv[k] = keep; stamp(c, `inv.${k}`); dirty = true; }
+        }
+      }
       if (v && Number(c.attuneMax) !== v.limit) { c.attuneMax = v.limit; stamp(c, 'attuneMax'); dirty = true; }
     }
     // Boons the DM gave this character (or the whole party)

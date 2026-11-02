@@ -1006,7 +1006,9 @@ function pickEquipment(cat) {
   const dlg = actDialog(draw, (e, paint) => {
     const b = e.target.closest('[data-eqadd]'); if (!b) return;
     const it = L.get(b.dataset.eqadd); if (!it) return;
-    const where = EQ_CAT[it.cat] || 'general';
+    // where it goes: the item's own section if the Library sets one; gear added from Treasure or Spell Components stays
+    // there; otherwise by its kind
+    const where = it.invCat || (['treasure', 'components'].includes(cat) && (it.cat || 'gear') === 'gear' ? cat : EQ_CAT[it.cat] || 'general');
     const row = { id: uid(), name: it.name, wt: Number(it.wt) || 0, qty: 1, magic: false, desc: [it.cost ? `${it.cost}` : '', it.weapon?.props || ''].filter(Boolean).join(' · '), eqId: it.id };
     c.inv[where] = [...(c.inv[where] || []), row]; stamp(c, `inv.${where}`);
     if (it.cat === 'weapon') addWeaponAttack(c, it, row);

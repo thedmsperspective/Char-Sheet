@@ -833,12 +833,11 @@ function pageInventory(c) {
         <td><input class="f n" data-k="inv.${k}.${i}.wt" data-type="num" inputmode="decimal" value="${esc(r.wt)}" aria-label="Weight each"></td>
         <td><input class="f n" data-k="inv.${k}.${i}.qty" data-type="num" inputmode="numeric" value="${esc(r.qty)}" aria-label="Quantity"></td>
         <td class="num">${calc('rowwt', `${k}.${i}`)}</td>
-        <td class="ctr"><input type="checkbox" data-k="inv.${k}.${i}.magic" ${r.magic ? 'checked' : ''} aria-label="Magical"></td>
         <td><input class="f" data-k="inv.${k}.${i}.desc" value="${esc(r.desc)}" aria-label="Description" autocomplete="off"></td>
         <td><button class="x" type="button" data-act="rowdel" data-list="inv.${k}" data-i="${i}" aria-label="Remove">×</button></td>
       </tr>`).join('');
     return panel(n, `<div class="tablewrap"><table class="inv">
-      <thead><tr><th>Item</th><th>Weight each</th><th>Qty</th><th>Weight</th><th>Magical</th><th>Description</th><th></th></tr></thead>
+      <thead><tr><th>Item</th><th>Weight each</th><th>Qty</th><th>Weight</th><th>Description</th><th></th></tr></thead>
       <tbody data-list="inv.${k}">${rows}</tbody></table></div>
       <div class="invfoot"><button class="linkbtn" type="button" data-act="rowadd" data-list="inv.${k}">Add to ${esc(n)}</button><button class="linkbtn" type="button" data-act="eqpick" data-cat="${k}">Add from the equipment list</button><span class="sub">${calc('catwt', k)}</span></div>`, 'invcat');
   }).join('');
