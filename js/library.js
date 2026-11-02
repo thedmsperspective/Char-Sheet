@@ -58,6 +58,10 @@ export function findByName(type, name) {
   return all(type).find(e => e.name.toLowerCase() === n) || null;
 }
 export const subclassesOf = classId => all('subclass').filter(s => s.parent === classId);
+/** Races and their subraces: the main races (no parent), and the subraces of one */
+export const mainRaces = () => all('race').filter(r => !r.parent);
+/** The main race a chosen race belongs to (itself if it is one) */
+export const baseRaceOf = r => (r?.parent ? get(r.parent) || r : r);
 export const subracesOf = raceId => all('race').filter(r => r.parent === raceId);
 
 /* ---------- editing (DM) ---------- */

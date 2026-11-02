@@ -93,7 +93,7 @@ function header(c) {
     <div class="headgrid">
       <div class="hf wide"><span class="lbl">Class &amp; level</span><div data-list="classes">${classes}</div>
         ${isPlayer() ? '' : '<button class="linkbtn" type="button" data-act="rowadd" data-list="classes">Add a class (multiclass)</button>'}</div>
-      <div class="hf"><span class="lbl">${R.F.is2024() ? 'Species' : 'Race'}</span>${pickInput('race', c.race, 'Pick or type', 'dl-race', c.raceId)}</div>
+${raceFields(c)}
       <div class="hf"><span class="lbl">Background</span>${pickInput('background', c.background, 'Pick or type', 'dl-bg', c.bgId)}</div>
       <label class="hf"><span class="lbl">Alignment</span>${txt(c, 'alignment')}</label>
       <label class="hf"><span class="lbl">Player name</span>${txt(c, 'player')}</label>
@@ -117,7 +117,18 @@ export function readyToLevel(c) {
   const next = R.XP_TABLE[R.totalLevel(c)];
   return next != null && (Number(c.xp) || 0) >= next && R.totalLevel(c) < 20;
 }
-const CHOOSE_ONCE = ['race', 'background', 'classes.0.name'];
+const CHOOSE_ONCE = ['raceBase', 'race', 'background', 'classes.0.name'];
+// Race, then subrace: the main races in one list, and that race's subraces (or lineages) in a second, when it has any
+function raceFields(c) {
+  const r = c.raceId ? L.get(c.raceId) : L.findByName('race', c.race);
+  const base = r ? L.baseRaceOf(r) : L.findByName('race', c.raceBase);
+  const baseName = base?.name || c.raceBase || (r ? '' : c.race);
+  const subs = base ? L.subracesOf(base.id) : [];
+  const subName = r?.parent ? r.name : '';
+  const sub = R.F.is2024() ? 'Lineage' : 'Subrace';
+  return `<div class="hf"><span class="lbl">${R.F.is2024() ? 'Species' : 'Race'}</span>${pickInput('raceBase', baseName, 'Pick or type', 'dl-race', base?.id || '')}</div>
+    ${subs.length ? `<div class="hf"><span class="lbl">${sub}</span>${pickInput('race', subName, isPlayer() && !subName ? 'Pick or type' : `Choose a ${sub.toLowerCase()}`, 'dl-subrace', subName ? r.id : '')}</div>` : ''}`;
+}
 // A text box that suggests library entries; the info button opens the full entry
 function pickInput(path, value, ph, list, id) {
   const info = id ? `<button class="info" type="button" data-act="libview" data-id="${id}" aria-label="Read ${esc(value)}">i</button>` : '';
@@ -130,7 +141,8 @@ function pickInput(path, value, ph, list, id) {
 }
 function datalists(c) {
   const opts = list => list.map(e => `<option value="${esc(e.name)}">${e.parent && e.type === 'race' ? esc(L.get(e.parent)?.name || '') : ''}</option>`).join('');
-  return `<datalist id="dl-race">${opts(L.all('race'))}</datalist><datalist id="dl-bg">${opts(L.all('background'))}</datalist><datalist id="dl-class">${opts(L.all('class'))}</datalist>
+  const rb = L.baseRaceOf(c.raceId ? L.get(c.raceId) : L.findByName('race', c.race)) || L.findByName('race', c.raceBase);
+  return `<datalist id="dl-race">${opts(L.mainRaces())}</datalist><datalist id="dl-subrace">${opts(rb ? L.subracesOf(rb.id) : [])}</datalist><datalist id="dl-bg">${opts(L.all('background'))}</datalist><datalist id="dl-class">${opts(L.all('class'))}</datalist>
     ${(c.classes || []).map((k, i) => `<datalist id="dl-sub-${i}">${opts(k.clsId ? L.subclassesOf(k.clsId) : L.all('subclass'))}</datalist>`).join('')}`;
 }
 

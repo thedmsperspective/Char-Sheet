@@ -221,17 +221,36 @@ function viewEntry(id) {
 }
 // A race, class, subclass, background or level changed: fill the sheet from the library
 // chosen: a race, background or first class a player just picked for themselves (they get one go at it)
+// Race and subrace: the race box holds the main race; the subrace box (when the race has subraces) the final choice.
+// c.race is always the final choice (what the library fills the sheet from); c.raceBase the main race.
+function syncRaceBase(c) {
+  if (c.raceBase == null) return;
+  const base = L.findByName('race', c.raceBase), cur = L.findByName('race', c.race);
+  if (!String(c.raceBase).trim()) { c.race = ''; return; }
+  if (!base) { c.race = c.raceBase; return; } // a race you typed yourself
+  const main = L.baseRaceOf(base);
+  if (cur && L.baseRaceOf(cur)?.id === main.id) return; // already that race (and maybe a subrace of it)
+  c.race = L.subracesOf(main.id).length ? '' : main.name;
+  c.raceBase = main.name;
+  stamp(c, 'race');
+}
 function picked(chosen = '') {
   const c = state.cur; if (!c) return;
+  const subWord = R.F.is2024() ? 'lineage' : 'subrace';
   if (chosen && player()) {
-    resolvePicks(c);
-    const idOf = { race: () => c.raceId, background: () => c.bgId, 'classes.0.name': () => c.classes?.[0]?.clsId }[chosen];
     const name = getPath(c, chosen);
-    const what = { race: R.F.is2024() ? 'species' : 'race', background: 'background', 'classes.0.name': 'class' }[chosen];
+    const what = { raceBase: R.F.is2024() ? 'species' : 'race', race: subWord, background: 'background', 'classes.0.name': 'class' }[chosen];
     const undo = () => { setPath(c, chosen, ''); stamp(c, chosen); save(c); renderSheet(); };
-    if (!idOf?.()) { undo(); if (name) toast(`Pick a ${what} from the list. Ask your DM to add it to the Library if it isn't there.`); return; }
-    if (!confirm(`Choose ${name} as your ${what}? Once it's chosen, only your DM can change it.`)) { undo(); return; }
+    let ok;
+    if (chosen === 'raceBase') { const b = L.findByName('race', name); ok = b && !b.parent; }
+    else if (chosen === 'race') { const s = L.findByName('race', name), b = L.findByName('race', c.raceBase); ok = s && b && s.parent === b.id; }
+    else { resolvePicks(c); ok = { background: () => c.bgId, 'classes.0.name': () => c.classes?.[0]?.clsId }[chosen]?.(); }
+    if (!ok) { undo(); if (name) toast(`Pick a ${what} from the list. Ask your DM to add it to the Library if it isn't there.`); return; }
+    const more = chosen === 'raceBase' && L.subracesOf(L.findByName('race', name).id).length;
+    if (!confirm(`Choose ${name} as your ${what}?${more ? ` You'll pick your ${subWord} next.` : ''} Once it's chosen, only your DM can change it.`)) { undo(); return; }
+    if (more) setTimeout(() => toast(`Now choose your ${subWord}.`), 200);
   }
+  if (chosen === 'raceBase' || !player()) syncRaceBase(c);
   const before = JSON.stringify([c.raceId, c.bgId, c.classes.map(k => [k.clsId, k.subId, k.level])]);
   resolvePicks(c);
   const after = JSON.stringify([c.raceId, c.bgId, c.classes.map(k => [k.clsId, k.subId, k.level])]);
