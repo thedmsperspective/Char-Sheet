@@ -6,9 +6,10 @@ import { esc, REMIND_ON } from './sheet.js';
 import { fmt } from './text.js';
 import { levelsToText, textToLevels } from './options.js';
 import * as T from './tables.js';
+import * as M from './magic.js';
 
 let ctx; // { toast, isDm(), confirm }
-const st = { type: 'race', q: '', sel: null, draft: null };
+const st = { type: 'race', q: '', sel: null, draft: null, f: {} };
 let root;
 
 export function initLibrary(el, helpers) {
@@ -111,14 +112,48 @@ export function entryHtml(e) {
 }
 
 /* ---------- the screen ---------- */
+/* ---------- filters: source for everything, and each type's own ---------- */
+// The book an entry is from: "PHB 103" → "PHB"; SRD entries are "SRD"; your own with no book are "Yours"
+const bookOf = e => (e.builtIn ? (L.edition() === '2024' ? 'SRD 5.2' : 'SRD 5.1') : String(e.src || '').replace(/[\s,.:;-]*(p\.?|pg\.?|page)?\s*\d.*$/i, '').trim() || (e.overridesSrd ? 'SRD, edited' : 'Yours'));
+const ITEM_CATS = [['gear', 'Adventuring gear'], ['armor', 'Armor and shields'], ['weapon', 'Weapons'], ['tool', 'Tools'], ['mount', 'Mounts and vehicles']];
+const SCHOOLS = s => [...new Set(s.map(x => String(x.school || '').trim()).filter(Boolean))].sort();
+function filterDefs(list) {
+  const t = st.type, defs = [['src', 'Source', [...new Set(list.map(bookOf))].sort().map(v => [v, v])]];
+  if (t === 'item') defs.push(['cat', 'Kind', ITEM_CATS.filter(([k]) => list.some(e => (e.cat || 'gear') === k))]);
+  if (t === 'option') defs.push(['group', 'Group', [...new Set(list.map(e => e.group).filter(Boolean))].sort().map(v => [v, v])]);
+  if (t === 'subclass' || t === 'spell') defs.push(['cls', 'Class', L.all('class').map(c => [c.id, c.name])]);
+  if (t === 'spell') {
+    defs.push(['level', 'Level', [...new Set(list.map(e => Number(e.level) || 0))].sort((a, b) => a - b).map(v => [String(v), v ? `Level ${v}` : 'Cantrip'])]);
+    defs.push(['school', 'School', SCHOOLS(list).map(v => [v, v])]);
+    defs.push(['tag', 'Other', [['ritual', 'Ritual'], ['conc', 'Concentration'], ['noconc', 'No concentration']]]);
+  }
+  return defs.filter(([k, , opts]) => opts.length > 1 || (st.f[k] ?? '') !== '');
+}
+function passes(e) {
+  const f = st.f;
+  if (f.src && bookOf(e) !== f.src) return false;
+  if (f.cat && (e.cat || 'gear') !== f.cat) return false;
+  if (f.group && e.group !== f.group) return false;
+  if (f.cls) { if (e.type === 'subclass' ? e.parent !== f.cls : !((e.classes || []).includes(f.cls) || (e.subclasses || []).some(s => L.get(s)?.parent === f.cls))) return false; }
+  if (f.level !== undefined && f.level !== '' && String(Number(e.level) || 0) !== f.level) return false;
+  if (f.school && String(e.school || '').trim() !== f.school) return false;
+  if (f.tag === 'ritual' && !e.ritual) return false;
+  if (f.tag === 'conc' && !e.conc) return false;
+  if (f.tag === 'noconc' && e.conc) return false;
+  return true;
+}
 function render() {
   const dm = ctx.isDm();
-  const items = L.all(st.type).filter(e => !st.q || e.name.toLowerCase().includes(st.q.toLowerCase()));
+  const all = L.all(st.type), defs = filterDefs(all);
+  const items = all.filter(e => (!st.q || e.name.toLowerCase().includes(st.q.toLowerCase())) && passes(e));
+  const nf = Object.values(st.f).filter(v => v !== '' && v != null).length;
   const sel = st.sel && L.get(st.sel)?.type === st.type ? L.get(st.sel) : null;
   root.innerHTML = `
     <aside class="libside">
       <div class="seg libtypes" role="group" aria-label="Entry type">${L.TYPES.map(([k]) => `<button type="button" data-ltype="${k}" aria-pressed="${st.type === k}">${L.typePlural(k)}</button>`).join('')}</div>
       <input class="f" type="search" data-lq value="${esc(st.q)}" placeholder="Search ${L.typePlural(st.type).toLowerCase()}" aria-label="Search">
+      ${defs.length ? `<details class="libfilters" ${nf ? 'open' : ''}><summary>Filters${nf ? ` (${nf})` : ''} · ${items.length} shown</summary><div class="lfrow">${defs.map(([k, label, opts]) => `<label class="lf"><span>${label}</span><select class="f" data-lf="${k}"><option value="">All</option>${opts.map(([v, n]) => `<option value="${esc(v)}" ${String(st.f[k] ?? '') === String(v) ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label>`).join('')}
+        ${nf ? '<button class="linkbtn" type="button" data-lfclear>Clear filters</button>' : ''}</div></details>` : ''}
       ${dm ? `<button class="btn primary" type="button" data-lnew>New ${L.typeName(st.type).toLowerCase()}</button>` : ''}
       <ul class="liblist">${items.map(e => `<li><button type="button" data-lsel="${e.id}" aria-current="${e.id === st.sel}">
         <span>${esc(e.name)}${e.parent && e.type === 'race' ? ` <small>${esc(L.get(e.parent)?.name || '')}</small>` : ''}${e.type === 'subclass' ? ` <small>${esc(L.get(e.parent)?.name || '')}</small>` : ''}${e.type === 'option' ? ` <small>${esc(e.group || '')}</small>` : ''}${e.type === 'spell' ? ` <small>${e.level ? `Lv ${e.level}` : 'Cantrip'}</small>` : ''}</span>
@@ -142,7 +177,7 @@ const FIELDS = {
     ['equipment', 'Starting equipment', 'area', '- (a) a rapier or (b) a longsword\n- Leather armor and a dagger'],
     ['caster', 'Spellcasting type', 'casterSel'], ['asi', 'Ability Score Improvement levels', 'numlist', '4, 8, 12, 16, 19'],
     ['subclassLevel', 'Subclass chosen at level', 'num'], ['optionGroups', 'Class option choices (Invocations, Metamagic, Infusions…)', 'optgroups'], ['table', 'Level table (the class table, 1st to 20th)', 'ctable'], ['tables', 'Other tables: random rolls (d6, d100…), your own levels, or plain', 'xtables'], ['features', 'Features', 'leveled'], ['desc', 'Description', 'area'], ['note', 'Table Rules note', 'area']],
-  subclass: [['name', 'Name'], ['parent', 'Class', 'classSel'], ['src', 'Book and page'], ['caster', 'Makes the class a spellcaster', 'casterSub'], ['spellAbil', 'Spellcasting ability', 'abilSel'],
+  subclass: [['name', 'Name'], ['parent', 'Class', 'classSel'], ['src', 'Book and page'], ['caster', 'Makes the class a spellcaster', 'casterSub'], ['spellAbil', 'Spellcasting ability', 'abilSel'], ['spellMode', 'How its subclass spells work', 'subSpellSel'],
     ['optionGroups', 'Class option choices (Maneuvers, Runes, Fighting Styles…)', 'optgroups'], ['table', 'Level table columns (1st to 20th, shown with the class\'s)', 'ctable'], ['tables', 'Other tables: random rolls (d6, d100…), your own levels, or plain', 'xtables'],
     ['features', 'Features', 'leveled'], ['desc', 'Description', 'area'], ['note', 'Table Rules note', 'area']],
   option: [['name', 'Name'], ['group', 'Group', 'groupText', 'Eldritch Invocations'], ['src', 'Book and page'], ['owners', 'Which classes and subclasses can choose it', 'ownerMulti'],
@@ -198,8 +233,9 @@ function editorHtml(d) {
           <datalist id="dl-optgroups2">${[...new Set(L.all('option').map(o => o.group).filter(Boolean))].map(g => `<option value="${esc(g)}"></option>`).join('')}</datalist>`, { group: '', levels: {} })
         + '<p class="hint wide">Level: total picks from that level on. "2: 2, 5: 3" means 2 at level 2 and 3 from level 5. A subclass\'s count adds to its class\'s.</p>';
       case 'classMulti': return `<fieldset class="hf wide checks"><legend class="lbl">${label}</legend>${L.all('class').map(x => `<label class="chk"><input type="checkbox" data-fset="${path}" value="${x.id}" ${(v || []).includes(x.id) ? 'checked' : ''}><span>${esc(x.name)}</span></label>`).join('')}</fieldset>`;
-      case 'subMulti': return `<fieldset class="hf wide checks"><legend class="lbl">${label}</legend>${L.all('subclass').map(x => `<label class="chk"><input type="checkbox" data-fset="${path}" value="${x.id}" ${(v || []).includes(x.id) ? 'checked' : ''}><span>${esc(x.name)} <small>${esc(L.get(x.parent)?.name || '')}</small></span></label>`).join('')}<span class="hint">Spells on a subclass list count as always prepared.</span></fieldset>`;
+      case 'subMulti': return `<fieldset class="hf wide checks"><legend class="lbl">${label}</legend>${L.all('subclass').map(x => `<label class="chk"><input type="checkbox" data-fset="${path}" value="${x.id}" ${(v || []).includes(x.id) ? 'checked' : ''}><span>${esc(x.name)} <small>${esc(L.get(x.parent)?.name || '')}</small></span></label>`).join('')}<span class="hint">Whether these are always prepared, always known, or just added to the list to choose from is set on each subclass (under "How its subclass spells work").</span></fieldset>`;
       case 'itemCat': return `<label class="hf">${lab}<select class="f" data-f="${path}" data-rerender>${opt([['gear', 'Adventuring gear'], ['armor', 'Armor or shield'], ['weapon', 'Weapon'], ['tool', 'Tool'], ['mount', 'Mount or vehicle']], v || 'gear')}</select></label>`;
+      case 'subSpellSel': return `<label class="hf wide">${lab}<select class="f" data-f="${path}"><option value="" ${!v ? 'selected' : ''}>The usual for its class${d.parent ? ` (${M.subSpellMode({ parent: d.parent }) === 'added' ? 'added to the spell list' : M.subSpellMode({ parent: d.parent }) === 'known' ? 'always known' : 'always prepared'})` : ''}</option>${opt([['prepared', 'Always prepared (domain, oath, circle spells)'], ['known', "Always known, and don't count against spells known"], ['added', 'Added to the class spell list to choose from (expanded spells)']], v || '').replace(/<option value=""[^>]*>[^<]*<\/option>/, '')}</select></label>`;
       case 'armorKind': return `<label class="hf">${lab}<select class="f" data-f="${path}">${opt([['light', 'Light'], ['medium', 'Medium'], ['heavy', 'Heavy'], ['shield', 'Shield']], v || 'light')}</select></label>`;
       case 'weapKind': return `<label class="hf">${lab}<select class="f" data-f="${path}">${opt([['simple', 'Simple'], ['martial', 'Martial']], v || 'simple')}</select></label>`;
       case 'langKind': return `<label class="hf">${lab}<select class="f" data-f="${path}">${opt([['Standard', 'Standard'], ['Exotic', 'Exotic'], ['Secret', 'Secret']], v)}</select></label>`;
@@ -320,6 +356,7 @@ function rows(path, label, list, row, blank, big = false) {
 /* ---------- events ---------- */
 function onInput(e) {
   const el = e.target;
+  if (el.matches('[data-lf]')) { if (e.type !== 'change') return; st.f[el.dataset.lf] = el.value; return render(); }
   if (el.matches('[data-lq]')) {
     if (e.type !== 'input') return;
     st.q = el.value;
@@ -371,7 +408,8 @@ function onInput(e) {
 async function onClick(e) {
   const b = e.target.closest('button'); if (!b) return;
   const d = b.dataset;
-  if (d.ltype) { st.type = d.ltype; st.sel = null; st.draft = null; st.q = ''; return render(); }
+  if (d.ltype) { st.type = d.ltype; st.sel = null; st.draft = null; st.q = ''; st.f = {}; return render(); }
+  if (d.lfclear != null) { st.f = {}; return render(); }
   if (d.lsel) { st.sel = d.lsel; st.draft = null; render(); root.querySelector('.libmain').scrollTop = 0; return; }
   if (d.libopen) { const x = L.get(d.libopen); if (x) { st.type = x.type; st.sel = x.id; st.draft = null; render(); } return; }
   if (d.lnew != null) { st.draft = L.blank(st.type); render(); root.querySelector('[data-f="name"]')?.focus(); return; }

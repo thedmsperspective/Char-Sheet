@@ -707,7 +707,7 @@ function pageSpells(c) {
       const always = M.alwaysPrepared(c, s), isMine = mine.has(s.id) || always;
       const isOther = other.some(o => o.id === s.id);
       return `<div class="sprow ${isMine ? 'mine' : ''}">
-        ${always ? '<span class="always" title="Always prepared (subclass)">Always</span>' : `<button type="button" class="star ${isMine ? 'on' : ''}" data-act="mine" data-id="${s.id}" aria-pressed="${isMine}" aria-label="${isMine ? 'Remove from' : 'Add to'} my spells: ${esc(s.name)}">★</button>`}
+        ${always ? `<span class="always" title="${always === 'known' ? 'Always known (subclass); doesn\'t count against your spells known' : 'Always prepared (subclass)'}">Always</span>` : `<button type="button" class="star ${isMine ? 'on' : ''}" data-act="mine" data-id="${s.id}" aria-pressed="${isMine}" aria-label="${isMine ? 'Remove from' : 'Add to'} my spells: ${esc(s.name)}">★</button>`}
         <button type="button" class="spname" data-act="libview" data-id="${s.id}">${esc(s.name)}${s.conc ? ' <i class="tag">C</i>' : ''}${s.ritual ? ' <i class="tag">R</i>' : ''}${isOther ? ' <i class="tag">other list</i>' : ''}</button>
         <span class="spmeta">${esc(s.time || '')} · ${esc(s.range || '')}</span>
         ${l > 0 ? `<button class="btn small" type="button" data-act="cast" data-id="${s.id}">Cast</button>` : '<span></span>'}

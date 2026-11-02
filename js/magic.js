@@ -102,10 +102,24 @@ export function availableSpells(c) {
   const subIds = new Set((c.classes || []).map(k => k.subId).filter(Boolean));
   return L.all('spell').filter(s => (s.classes || []).some(x => clsIds.has(x)) || (s.subclasses || []).some(x => subIds.has(x)));
 }
-// Subclass spells (domain, oath) count as always prepared
+// How a subclass's spells work: 'prepared' (always prepared: domains, oaths, circles, and every 2024 subclass),
+// 'known' (always known, not counted against spells known: 2014 Ranger and Sorcerer subclasses), or 'added'
+// (just added to the class's list to choose from: the 2014 Warlock's expanded spells). The subclass can say so itself.
+export function subSpellMode(sub) {
+  if (!sub) return 'prepared';
+  if (sub.spellMode) return sub.spellMode;
+  if (L.edition() === '2024') return 'prepared';
+  const cls = String(L.get(sub.parent)?.name || '').toLowerCase();
+  return cls === 'warlock' ? 'added' : cls === 'ranger' || cls === 'sorcerer' ? 'known' : 'prepared';
+}
+// The character always has this spell ready (a subclass spell that's always prepared or always known): 'prepared' | 'known' | ''
 export function alwaysPrepared(c, s) {
-  const subIds = new Set((c.classes || []).map(k => k.subId).filter(Boolean));
-  return (s.subclasses || []).some(x => subIds.has(x));
+  for (const k of c.classes || []) {
+    if (!k.subId || !(s.subclasses || []).includes(k.subId)) continue;
+    const mode = subSpellMode(L.get(k.subId));
+    if (mode !== 'added') return mode;
+  }
+  return '';
 }
 // Which class's ability a spell uses (first matching class with a spellcasting ability)
 export function spellClass(c, s) {

@@ -939,3 +939,9 @@ html[data-red="1"] .syncbtn .dot{background:#fff}
   .atkedit,.edgrid,.spellbox,.abdc{grid-template-columns:1fr}
   .topbar h1{max-width:none}
 }
+/* Library filters */
+.libfilters{margin:6px 0}
+.libfilters summary{cursor:pointer;color:var(--muted);font-size:.9rem;padding:4px 0}
+.lfrow{display:grid;gap:6px;margin-top:6px}
+.lf{display:grid;grid-template-columns:80px 1fr;align-items:center;gap:8px;font-size:.9rem;color:var(--muted)}
+.lf .f{min-height:36px}
