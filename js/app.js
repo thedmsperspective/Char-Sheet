@@ -1355,6 +1355,7 @@ async function start() {
 
   // Tab indents inside text boxes (Shift+Tab steps back) instead of jumping to the next field
   document.addEventListener('keydown', tabIndent);
+  import('/core/text.js').catch(() => {}); // indent buttons on every text box, and bullet lists
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#look').hidden && !document.querySelector('dialog[open]')) closeLook(); });
   window.addEventListener('pagehide', flush);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); });

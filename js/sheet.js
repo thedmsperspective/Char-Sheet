@@ -199,7 +199,7 @@ function combat(c) {
       <div class="stat ac"><button class="acnum" type="button" data-act="ac"><span class="lbl">Armor class</span><b>${calc('ac')}</b>${calc('actemp')}</button>
         ${Number(c.ac?.shield) ? `<button class="shtog" type="button" data-act="shield" aria-pressed="${c.ac.shieldOff !== true}"><i aria-hidden="true"></i>Shield ${c.ac.shieldOff !== true ? 'in hand' : 'stowed'}</button><small class="acalt">${calc('acalt')}</small>` : ''}</div>
       ${L.tableSettings().initiative === 'active' ? interruptPoint(c) : `<label class="stat"><span class="lbl">Initiative</span><b>${calc('init')}</b></label>`}
-      ${isPlayer() ? `<div class="stat"><span class="lbl">Speed</span><b class="spd" data-calc="speed">${speedHtml(c)}</b></div>` : `<label class="stat"><span class="lbl">Speed</span><textarea class="f center spdta" data-k="speed" rows="${Math.min(4, Math.max(1, String(c.speed || '').split(',').length))}" autocomplete="off" placeholder="30 ft, swim 30 ft">${esc(c.speed)}</textarea><small class="spdnow" data-calc="speednow">${speedNow(c)}</small></label>`}
+      ${isPlayer() ? `<div class="stat"><span class="lbl">Speed</span><b class="spd" data-calc="speed">${speedHtml(c)}</b></div>` : `<label class="stat"><span class="lbl">Speed</span><textarea class="f center spdta" data-plain data-k="speed" rows="${Math.min(4, Math.max(1, String(c.speed || '').split(',').length))}" autocomplete="off" placeholder="30 ft, swim 30 ft">${esc(c.speed)}</textarea><small class="spdnow" data-calc="speednow">${speedNow(c)}</small></label>`}
     </div>
     ${rageBar(c)}
     <div class="featfx" data-calc="featfx">${featFxHtml(c)}</div>

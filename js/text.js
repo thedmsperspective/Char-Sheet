@@ -22,9 +22,12 @@ function indentOf(line) {
   return { lvl: Math.max(1, Math.round(cols / 4)), rest: line.slice(m[0].length) };
 }
 
+const BULLET = /^[ \t]*([-*•]|\d+[.)])\s+/;
 export function fmt(t) {
   const text = String(t || '').replace(/\r\n?/g, '\n');
   return text.split(/\n{2,}/).map(par => {
+    // A list ("- ", "* " or "1. " lines, indented to nest): the suite's shared list maker, when it has loaded
+    if (window.DMPText && par.split('\n').some(l => BULLET.test(l))) return window.DMPText.textHTML(par, s => inline(esc(s)));
     const lines = par.split('\n').map(l => ({ ...indentOf(l) }));
     if (!lines.some(l => l.lvl)) return `<p>${lines.map(l => inline(esc(l.rest))).join('<br>')}</p>`;
     return `<div class="tx">${lines.map(l => `<div class="txl"${l.lvl ? ` style="text-indent:${l.lvl * 1.5}em"` : ''}>${inline(esc(l.rest)) || '&nbsp;'}</div>`).join('')}</div>`;
@@ -32,9 +35,10 @@ export function fmt(t) {
 }
 
 // Tab in a text box indents the line instead of leaving the box; Shift+Tab takes one step back out.
-// Works on a selection of several lines too. (On a phone or tablet keyboard, type 4 spaces instead.)
+// Works on a selection of several lines too. (On a phone or tablet, the suite adds indent buttons over the box: /core/text.js.)
 export function tabIndent(e) {
   const ta = e.target;
+  if (e.defaultPrevented) return; // the suite's shared indenting (/core/text.js) already did it
   if (e.key !== 'Tab' || ta?.tagName !== 'TEXTAREA' || e.ctrlKey || e.altKey || e.metaKey) return;
   e.preventDefault();
   const v = ta.value, s = ta.selectionStart, end = ta.selectionEnd;
