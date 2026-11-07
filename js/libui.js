@@ -307,6 +307,7 @@ function xtablesEditor(path, label, list, d) {
       </div>
       <div class="ctable-wrap"><table class="ctable edit xtgrid">
         <tr>${cols.map((h, j) => `<th><div class="cthead"><input class="f" data-f="${p}.cols.${j}" value="${esc(h)}" placeholder="${j ? 'Column' : t.kind === 'roll' ? (t.die || 'd6') : t.kind === 'level' ? 'Level' : 'Column'}" autocomplete="off" aria-label="Column ${j + 1} name">
+          <select class="f xtw" data-f="${p}.widths.${j}" aria-label="Column ${j + 1} width" title="How wide this column is, for everyone">${T.WIDTH_CHOICES.map(([k, n]) => `<option value="${k}" ${((t.widths || {})[j] || '') === k ? 'selected' : ''}>${k ? n : 'Width: fit'}</option>`).join('')}</select>
           ${cols.length > 1 ? `<div class="ctbtns"><button class="x" type="button" data-xtcoldel="${i}" data-j="${j}" aria-label="Remove column">×</button></div>` : ''}</div></th>`).join('')}
           <th class="ctlv"><button class="x" type="button" data-xtcoladd="${i}" aria-label="Add a column">+</button></th></tr>
         ${rows.map((r, ri) => `<tr>${cols.map((_, j) => `<td><input class="f ${j ? 'wide' : ''}" data-f="${p}.rows.${ri}.${j}" value="${esc(r[j] ?? '')}" placeholder="${j ? '' : t.kind === 'roll' ? `${ri + 1}` : t.kind === 'level' ? 'Level' : ''}" autocomplete="off" aria-label="Row ${ri + 1}, column ${j + 1}"></td>`).join('')}
@@ -437,8 +438,8 @@ async function onClick(e) {
   if (d.xtdel != null) { const t = st.draft.tables[Number(d.xtdel)]; if ((t.title || t.rows?.some(r => r.some(Boolean))) && !confirm(`Remove the ${t.title || 'untitled'} table?`)) return; st.draft.tables.splice(Number(d.xtdel), 1); return keepScroll(render); }
   if (d.xtrowadd != null) { const t = st.draft.tables[Number(d.xtrowadd)]; t.rows.push(Array((t.cols || []).length).fill('')); return keepScroll(render); }
   if (d.xtrowdel != null) { st.draft.tables[Number(d.xtrowdel)].rows.splice(Number(d.r), 1); return keepScroll(render); }
-  if (d.xtcoladd != null) { const t = st.draft.tables[Number(d.xtcoladd)]; t.cols.push(''); t.rows.forEach(r => r.push('')); return keepScroll(render); }
-  if (d.xtcoldel != null) { const t = st.draft.tables[Number(d.xtcoldel)], j = Number(d.j); if (t.cols.length < 2) return; t.cols.splice(j, 1); t.rows.forEach(r => r.splice(j, 1)); return keepScroll(render); }
+  if (d.xtcoladd != null) { const t = st.draft.tables[Number(d.xtcoladd)]; t.cols.push(''); t.rows.forEach(r => r.push('')); if (t.widths) t.widths = Array.from({ length: t.cols.length }, (_, k) => t.widths[k] || ''); return keepScroll(render); }
+  if (d.xtcoldel != null) { const t = st.draft.tables[Number(d.xtcoldel)], j = Number(d.j); if (t.cols.length < 2) return; t.cols.splice(j, 1); t.rows.forEach(r => r.splice(j, 1)); if (t.widths) { t.widths = Array.from({ length: t.cols.length + 1 }, (_, k) => t.widths[k] || ''); t.widths.splice(j, 1); } return keepScroll(render); }
   if (d.xtpaste != null) {
     const i = Number(d.xtpaste), t = st.draft.tables[i], box = root.querySelector(`[data-xtpastebox="${i}"]`);
     const { rows, width } = xtParse(box?.value, t.kind, t.cols.length);

@@ -180,6 +180,9 @@ export function looseTables(c) {
   return tablesFor(c).filter(x => !x.t.feature || !names.has(x.t.feature.trim().toLowerCase()));
 }
 
+// Column widths the DM can set for a table, so everyone sees it the same way ('' fits the column to what's in it)
+export const WIDTH_CHOICES = [['', 'Fit'], ['n', 'Narrow'], ['m', 'Medium'], ['w', 'Wide'], ['x', 'Widest']];
+export const WIDTHS = { n: 80, m: 150, w: 250, x: 380 };
 // One table as HTML. roll: { n, row } from the last roll, to highlight
 export function extraTableHtml(t, esc, { lvl = null, roll = null, rollable = false, fill = s => s } = {}) {
   const cols = t.cols || [];
@@ -188,8 +191,8 @@ export function extraTableHtml(t, esc, { lvl = null, roll = null, rollable = fal
     <div class="xthead">${t.title ? `<b>${esc(t.title)}</b>` : ''}${t.kind === 'roll' && t.die ? `<span class="sub">Roll ${esc(t.die)}</span>` : ''}
       ${rollable && t.kind === 'roll' && parseDie(t.die) ? `<button class="btn small" type="button" data-act="troll" data-tid="${esc(t.id)}">Roll ${esc(t.die)}</button>` : ''}</div>
     ${roll ? `<p class="xtroll">Rolled <b>${roll.n}</b>${roll.row < 0 ? ': no row covers that number.' : ''}</p>` : ''}
-    <div class="ctable-wrap"><table class="ctable xt">
-      <tr>${cols.map(h => `<th>${esc(h)}</th>`).join('')}</tr>
+    <div class="ctable-wrap"><table class="ctable xt ${t.kind === 'plain' ? 'plain' : ''}" ${Object.values(t.widths || {}).some(Boolean) ? 'data-noresize' : ''}>
+      <tr>${cols.map((h, j) => `<th${WIDTHS[(t.widths || {})[j]] ? ` style="width:${WIDTHS[t.widths[j]]}px;min-width:${WIDTHS[t.widths[j]]}px"` : ''}>${esc(h)}</th>`).join('')}</tr>
       ${(t.rows || []).map((r, i) => !r.some(x => String(x ?? '').trim()) ? '' : `<tr class="${i === hi ? 'hi' : ''}">${cols.map((_, j) => `<td class="${j ? 'tfeat' : ''}">${esc(fill(r[j] ?? ''))}</td>`).join('')}</tr>`).join('')}
     </table></div></div>`;
 }

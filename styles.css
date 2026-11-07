@@ -828,6 +828,15 @@ html[data-red="1"] .syncbtn .dot{background:#fff}
 .ctable.xt td:first-child{text-align:center;white-space:nowrap}
 .ctable.xt tr.hi td{background:var(--accent-soft);font-weight:600}
 .ctable.xt th{text-align:left}
+/* extra tables fit their contents instead of stretching across the page */
+.ctable.xt{width:auto;max-width:100%}
+.xtable .ctable-wrap{width:fit-content;max-width:100%}
+.ctable.xt .tfeat{min-width:0}
+.ctable.xt td:first-child{position:static;background:transparent}
+.ctable.xt tr:nth-child(even) td:first-child{background:rgba(255,255,255,.025)}
+.ctable.xt th:first-child{text-align:center}
+.ctable.xt.plain td:first-child,.ctable.xt.plain th:first-child{text-align:left}
+.xtgrid .xtw{width:100%;min-height:30px;margin-top:4px;font-size:.78rem;padding:2px 4px}
 .xtedit{border:1px solid var(--line);border-radius:10px;padding:10px;margin:8px 0;background:var(--raise)}
 .xtrow1{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .xtgrid td .f.wide{width:min(46vw,420px)}
