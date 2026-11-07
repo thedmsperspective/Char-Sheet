@@ -13,6 +13,8 @@ function inline(s) {
     .replace(/\*\*(?=\S)([^*\n]+?)(?<=\S)\*\*/g, '<b>$1</b>')
     .replace(/\*(?=\S)([^*\n]+?)(?<=\S)\*/g, '<i>$1</i>');
 }
+/** One line (a table cell, a name) with **bold**, *italic* and ***both***, made safe to show */
+export const fmtInline = s => inline(esc(s));
 // How far a line is indented: each tab, or each 4 spaces, is one step
 function indentOf(line) {
   const m = /^[ \t]+/.exec(line);

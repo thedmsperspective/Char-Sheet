@@ -4,6 +4,7 @@
 // Level, Proficiency Bonus and Features are drawn from the rest of the entry.
 import * as L from './library.js';
 import * as R from './rules.js';
+import { fmtInline } from './text.js'; // **bold** and *italic* in table cells
 
 export const LEVELS = 20;
 const ORD = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th', '11th', '12th', '13th', '14th', '15th', '16th', '17th', '18th', '19th', '20th'];
@@ -109,12 +110,12 @@ export function tableHtml(e, esc) {
     return fs;
   };
   if (isClass && !cols.length && !(e.features || []).length) return '';
-  const head = `<tr><th>Level</th>${isClass ? '<th>Proficiency Bonus</th>' : ''}<th class="tfeat">Features</th>${cols.map(x => `<th>${esc(x.name)}</th>`).join('')}</tr>`;
+  const head = `<tr><th>Level</th>${isClass ? '<th>Proficiency Bonus</th>' : ''}<th class="tfeat">Features</th>${cols.map(x => `<th>${fmtInline(x.name)}</th>`).join('')}</tr>`;
   const rows = [];
   for (let l = 1; l <= LEVELS; l++) {
     const fs = feats(l);
     if (!isClass && !fs.length && !cols.some(x => String(x.vals?.[l - 1] ?? '').trim())) continue; // subclass: only levels where something happens
-    rows.push(`<tr><td>${ord(l)}</td>${isClass ? `<td>+${profAt(l)}</td>` : ''}<td class="tfeat">${fs.map(esc).join(', ') || '—'}</td>${cols.map(x => `<td>${esc(cellAt(x, l) || '—')}</td>`).join('')}</tr>`);
+    rows.push(`<tr><td>${ord(l)}</td>${isClass ? `<td>+${profAt(l)}</td>` : ''}<td class="tfeat">${fs.map(fmtInline).join(', ') || '—'}</td>${cols.map(x => `<td>${fmtInline(cellAt(x, l) || '—')}</td>`).join('')}</tr>`);
   }
   return `<h3>${esc(e.name)} table</h3><div class="ctable-wrap"><table class="ctable">${head}${rows.join('')}</table></div>`;
 }
@@ -192,7 +193,7 @@ export function extraTableHtml(t, esc, { lvl = null, roll = null, rollable = fal
       ${rollable && t.kind === 'roll' && parseDie(t.die) ? `<button class="btn small" type="button" data-act="troll" data-tid="${esc(t.id)}">Roll ${esc(t.die)}</button>` : ''}</div>
     ${roll ? `<p class="xtroll">Rolled <b>${roll.n}</b>${roll.row < 0 ? ': no row covers that number.' : ''}</p>` : ''}
     <div class="ctable-wrap"><table class="ctable xt ${t.kind === 'plain' ? 'plain' : ''}" ${Object.values(t.widths || {}).some(Boolean) ? 'data-noresize' : ''}>
-      <tr>${cols.map((h, j) => `<th${WIDTHS[(t.widths || {})[j]] ? ` style="width:${WIDTHS[t.widths[j]]}px;min-width:${WIDTHS[t.widths[j]]}px"` : ''}>${esc(h)}</th>`).join('')}</tr>
-      ${(t.rows || []).map((r, i) => !r.some(x => String(x ?? '').trim()) ? '' : `<tr class="${i === hi ? 'hi' : ''}">${cols.map((_, j) => `<td class="${j ? 'tfeat' : ''}">${esc(fill(r[j] ?? ''))}</td>`).join('')}</tr>`).join('')}
+      <tr>${cols.map((h, j) => `<th${WIDTHS[(t.widths || {})[j]] ? ` style="width:${WIDTHS[t.widths[j]]}px;min-width:${WIDTHS[t.widths[j]]}px"` : ''}>${fmtInline(h)}</th>`).join('')}</tr>
+      ${(t.rows || []).map((r, i) => !r.some(x => String(x ?? '').trim()) ? '' : `<tr class="${i === hi ? 'hi' : ''}">${cols.map((_, j) => `<td class="${j ? 'tfeat' : ''}">${fmtInline(fill(r[j] ?? ''))}</td>`).join('')}</tr>`).join('')}
     </table></div></div>`;
 }

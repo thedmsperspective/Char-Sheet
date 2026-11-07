@@ -325,7 +325,7 @@ function xtablesEditor(path, label, list, d) {
           <textarea class="f" data-plain data-xtpastebox="${i}" rows="6" placeholder="${t.kind === 'roll' ? '01-05 | Roll on this table again&#10;06-10 | You turn blue for 1 minute' : t.kind === 'level' ? '3 | 1d6&#10;7 | 2d6' : 'Cell | Cell'}"></textarea>
           <span class="hint">One row per line. Separate columns with a tab or |. ${t.kind !== 'plain' ? 'Or just put the number or range first and the text after it.' : ''} This replaces the rows above.</span>
           <button class="btn small" type="button" data-xtpaste="${i}">Use these rows</button></details></div>
-      <p class="hint">${t.kind === 'roll' ? 'First column: the roll, like 1, 2-3 or 01-05 (00 counts as 100 on a d100). The sheet gets a Roll button.' : t.kind === 'level' ? "First column: the level each row starts at. The sheet highlights the character's row, and the other columns work as {tokens} and like class table columns." : 'Any rows and columns.'}</p>
+      <p class="hint">In any cell, **bold** and *italic* work, like the rest of the Library. ${t.kind === 'roll' ? 'First column: the roll, like 1, 2-3 or 01-05 (00 counts as 100 on a d100). The sheet gets a Roll button.' : t.kind === 'level' ? "First column: the level each row starts at. The sheet highlights the character's row, and the other columns work as {tokens} and like class table columns." : 'Any rows and columns.'}</p>
     </div>`;
   };
   return `<div class="hf wide xtables"><span class="lbl">${label}</span>${list.map(one).join('') || '<p class="hint">No tables.</p>'}
