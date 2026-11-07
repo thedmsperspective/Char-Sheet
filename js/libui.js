@@ -142,7 +142,14 @@ function passes(e) {
   if (f.tag === 'noconc' && e.conc) return false;
   return true;
 }
+// Redraw, keeping the list where it was scrolled to (so picking an entry doesn't jump the list back to the top)
 function render() {
+  const ul = root?.querySelector('.liblist'), y = ul?.scrollTop, was = ul?.dataset.t;
+  renderAll();
+  const u2 = root?.querySelector('.liblist');
+  if (u2 && y && was === st.type) u2.scrollTop = y;
+}
+function renderAll() {
   const dm = ctx.isDm();
   const all = L.all(st.type), defs = filterDefs(all);
   const items = all.filter(e => (!st.q || e.name.toLowerCase().includes(st.q.toLowerCase())) && passes(e));
@@ -155,7 +162,7 @@ function render() {
       ${defs.length ? `<details class="libfilters" ${nf ? 'open' : ''}><summary>Filters${nf ? ` (${nf})` : ''} · ${items.length} shown</summary><div class="lfrow">${defs.map(([k, label, opts]) => `<label class="lf"><span>${label}</span><select class="f" data-lf="${k}"><option value="">All</option>${opts.map(([v, n]) => `<option value="${esc(v)}" ${String(st.f[k] ?? '') === String(v) ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label>`).join('')}
         ${nf ? '<button class="linkbtn" type="button" data-lfclear>Clear filters</button>' : ''}</div></details>` : ''}
       ${dm ? `<button class="btn primary" type="button" data-lnew>New ${L.typeName(st.type).toLowerCase()}</button>` : ''}
-      <ul class="liblist">${items.map(e => `<li><button type="button" data-lsel="${e.id}" aria-current="${e.id === st.sel}">
+      <ul class="liblist" data-t="${esc(st.type)}">${items.map(e => `<li><button type="button" data-lsel="${e.id}" aria-current="${e.id === st.sel}">
         <span>${esc(e.name)}${e.parent && e.type === 'race' ? ` <small>${esc(L.get(e.parent)?.name || '')}</small>` : ''}${e.type === 'subclass' ? ` <small>${esc(L.get(e.parent)?.name || '')}</small>` : ''}${e.type === 'option' ? ` <small>${esc(e.group || '')}</small>` : ''}${e.type === 'spell' ? ` <small>${e.level ? `Lv ${e.level}` : 'Cantrip'}</small>` : ''}</span>
         <small class="srcb">${e.builtIn ? 'SRD' : esc(e.src || (e.overridesSrd ? 'SRD, edited' : 'Yours'))}</small></button></li>`).join('') || '<li class="empty">Nothing here yet.</li>'}</ul>
     </aside>
