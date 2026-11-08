@@ -4,7 +4,7 @@ import { getPath, setPath, stamp, uid, hpOp } from './model.js';
 import { fmt as fmtText } from './text.js';
 import { PRESETS, CLASS_ACCENTS, HEAD_FONTS, BODY_FONTS, FRAMES, applyTheme } from './theme.js';
 import * as L from './library.js';
-import { choiceList } from './autofill.js';
+import { choiceList, featChoices } from './autofill.js';
 import * as M from './magic.js';
 import * as O from './options.js';
 import * as T from './tables.js';
@@ -494,6 +494,19 @@ function optionsPanel(c) {
     </div>`).join(''), 'optpanel');
 }
 
+// Pick-one class features (Favored Enemy or Favored Foe…): read each, then choose. Players choose once; the DM can change it.
+function featChoiceHtml(c) {
+  const gs = featChoices(c);
+  if (!gs.length) return '';
+  return gs.map(g => g.pick
+    ? (isPlayer() ? '' : `<p class="featchosen hint">${esc(g.label)}: <b>${esc(g.pick)}</b> <button class="linkbtn" type="button" data-act="featpick" data-key="${esc(g.key)}">Change</button></p>`)
+    : `<div class="featchoice"><div class="lh"><span class="lbl">Choose one: ${esc(g.label)}</span><small class="src">${esc(g.src)} ${g.lvl}</small></div>
+      ${g.alts.map(f => `<details class="feat"><summary><span>${esc(f.name)}</span></summary>
+        ${f.text ? `<div class="ftext">${fmt(T.fillTokens(c, f.text))}</div>` : ''}
+        <button class="btn sm pri" type="button" data-act="featpick" data-key="${esc(g.key)}" data-name="${esc(f.name)}">Choose ${esc(f.name)}</button></details>`).join('')}
+    </div>`).join('');
+}
+
 // Extra tables from the Library (random rolls, by level, plain): inside their feature, or in the Tables section
 const lastRoll = {};
 const tblHtml = (c, x) => T.extraTableHtml(x.t, esc, { lvl: x.lvl, roll: lastRoll[x.t.id], rollable: true, fill: s => T.fillAll(c, s) });
@@ -558,7 +571,7 @@ function sectionHtml(c) {
       ? panel('Background feature', c.bgFeature?.name || c.bgFeature?.text ? `<details class="feat"><summary><span>${esc(c.bgFeature.name || 'Feature')}</span></summary><div class="ftext">${fmt(c.bgFeature.text)}</div></details>` : '<p class="empty">None yet.</p>')
       : panel('Background feature', `${txt(c, 'bgFeature.name', 'Feature name')}${area(c, 'bgFeature.text', 'Full text', 3)}`),
     racial: featureList(c, 'racial', R.F.is2024() ? 'Species traits' : 'Racial traits', { one: 'a trait', empty: 'Darkvision, ancestry traits…', locked: true }),
-    classfeat: featureList(c, 'classFeat', 'Class features', { one: 'a feature', locked: true, top: classTableStrip(c) }),
+    classfeat: featureList(c, 'classFeat', 'Class features', { one: 'a feature', locked: true, top: featChoiceHtml(c) + classTableStrip(c) }),
     options: optionsPanel(c),
     infusions: infusionsPanel(c),
     tables: tablesPanel(c),
@@ -1218,6 +1231,7 @@ function act(b, c, root) {
     case 'libview': return ctx.viewEntry(d.id);
     case 'levelup': return ctx.levelUp();
     case 'optpick': return ctx.pickOption(d.group);
+    case 'featpick': return ctx.pickFeature(d.key, d.name || '');
     case 'inknew': { const p = { id: uid(), strokes: [], updated: Date.now() }; c.inkPages = [...(c.inkPages || []), p]; stamp(c, 'inkPages'); ctx.save(c); return openInk(c, p.id); }
     case 'inkopen': return openInk(c, d.id);
     case 'optdel': {

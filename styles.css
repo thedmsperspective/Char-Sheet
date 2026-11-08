@@ -954,3 +954,4 @@ html[data-red="1"] .syncbtn .dot{background:#fff}
 .lfrow{display:grid;gap:6px;margin-top:6px}
 .lf{display:grid;grid-template-columns:80px 1fr;align-items:center;gap:8px;font-size:.9rem;color:var(--muted)}
 .lf .f{min-height:36px}
+.featchoice{border:1px solid var(--accent);border-radius:10px;padding:8px 10px;margin-bottom:10px;background:var(--accent-soft)}.featchoice .lh{display:flex;justify-content:space-between;gap:8px;margin-bottom:4px}.featchoice .btn{margin-top:6px}.featchosen{margin:0 0 8px}

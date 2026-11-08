@@ -456,6 +456,23 @@ function infuseDialog() {
   });
 }
 
+// Choose one of a class's pick-one features (Favored Enemy or Favored Foe…); no name clears the choice (DM only)
+function pickFeature(key, name) {
+  const c = state.cur; if (!c || !key) return;
+  if (!name) {
+    if (player()) return;
+    if (!confirm('Clear this choice? The features that came with it come off the sheet, and the player chooses again.')) return;
+    c.featPicks = { ...(c.featPicks || {}) }; delete c.featPicks[key];
+  } else {
+    if (player() && !confirm(`Choose ${name}? Once it's chosen, only your DM can change it.`)) return;
+    c.featPicks = { ...(c.featPicks || {}), [key]: name };
+  }
+  stamp(c, 'featPicks');
+  const added = syncAuto(c);
+  save(c); renderSheet();
+  if (name) toast(`${name} chosen${added.features > 1 ? `, with ${added.features} features` : ''}.`);
+}
+
 // Choose a class option (Invocation, Metamagic…) from the Library
 function pickOption(group) {
   const c = state.cur;
@@ -1265,7 +1282,7 @@ const sheetCtx = {
   themeChanged, closeLook, openAbility, openAc,
   picked, viewEntry,
   isPlayer: () => !isDm(),
-  levelUp, shortRest, longRest, openScores, mastery: masteryDialog, masteryInfo, pickEquipment, useEquipment, useMagicGear, cast: castSpell, spellFilter: 'mine', pickOption, addCreature, infuse: infuseDialog,
+  levelUp, shortRest, longRest, openScores, mastery: masteryDialog, masteryInfo, pickEquipment, useEquipment, useMagicGear, cast: castSpell, spellFilter: 'mine', pickOption, pickFeature, addCreature, infuse: infuseDialog,
   // send a change right away (a turn button), once the save has landed
   syncSoon: () => setTimeout(async () => { await flush(); sync.syncNow({ quiet: true }); }, 300),
   liveSend: (key, req) => sync.live().then(L => L?.cput(key, 'req', req)),

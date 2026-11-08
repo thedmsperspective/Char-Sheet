@@ -21,6 +21,39 @@ export function resolvePicks(c) {
   }
 }
 
+// ---------- pick-one features (Favored Enemy or Favored Foe…)
+// A class or subclass feature with a "choice" is one of the alternatives with that same choice name; the player
+// picks one and only that one goes on the sheet. A feature "with" a name only comes when that alternative was picked
+// (Favored Foe's bigger die at 6th level, Deft Explorer's Roving…).
+export const choiceKey = (e, choice) => `${e.id}:${String(choice).trim().toLowerCase()}`;
+const pickedNames = c => new Set(Object.values(c.featPicks || {}).map(v => String(v).trim().toLowerCase()));
+export function featApplies(c, e, f, picked = pickedNames(c)) {
+  if (String(f.choice || '').trim()) return (c.featPicks || {})[choiceKey(e, f.choice)] === f.name;
+  if (String(f.with || '').trim()) return picked.has(f.with.trim().toLowerCase());
+  return true;
+}
+/** The pick-one choices the character has reached: [{ key, label, lvl, src, alts: [feature], pick }] */
+export function featChoices(c) {
+  const out = [];
+  for (const k of c.classes || []) {
+    const lvl = Number(k.level) || 0;
+    for (const e of [L.get(k.clsId), L.get(k.subId)].filter(Boolean)) {
+      const groups = new Map();
+      for (const f of e.features || []) {
+        if (!String(f.choice || '').trim() || !f.name) continue;
+        const key = choiceKey(e, f.choice);
+        if (!groups.has(key)) groups.set(key, { key, label: f.choice.trim(), lvl: Infinity, src: e.name, alts: [] });
+        const g = groups.get(key); g.alts.push(f); g.lvl = Math.min(g.lvl, Number(f.lvl) || 1);
+      }
+      for (const g of groups.values()) if (g.lvl <= lvl) {
+        const p = (c.featPicks || {})[g.key];
+        out.push({ ...g, pick: g.alts.some(a => a.name === p) ? p : '' });
+      }
+    }
+  }
+  return out;
+}
+
 export function syncAuto(c) {
   const touched = new Set();
   const added = { traits: 0, features: 0, other: 0, names: [] };
@@ -29,6 +62,7 @@ export function syncAuto(c) {
   const bg = L.get(c.bgId);
   const picks = (c.classes || []).map(k => ({ k, cls: L.get(k.clsId), sub: L.get(k.subId), lvl: Number(k.level) || 0 }));
   const first = picks.find(p => p.cls);
+  const picked = pickedNames(c);
 
   /* ---- lists ---- */
   const want = { racial: [], classFeat: [], feats: [], defenses: [] };
@@ -42,11 +76,11 @@ export function syncAuto(c) {
   }
   for (const p of picks) {
     if (p.cls) {
-      for (const f of p.cls.features || []) if (f.lvl <= p.lvl) want.classFeat.push({ auto: `class:${p.cls.id}:${f.lvl}:${f.name}`, name: f.name, text: f.text, src: `${p.cls.name} ${f.lvl}`, lvl: f.lvl, ...(f.remind?.on ? { remind: f.remind } : {}) });
+      for (const f of p.cls.features || []) if (f.lvl <= p.lvl && featApplies(c, p.cls, f, picked)) want.classFeat.push({ auto: `class:${p.cls.id}:${f.lvl}:${f.name}`, name: f.name, text: f.text, src: `${p.cls.name} ${f.lvl}`, lvl: f.lvl, ...(f.remind?.on ? { remind: f.remind } : {}) });
       rule(p.cls, 'classFeat');
     }
     if (p.sub) {
-      for (const f of p.sub.features || []) if (f.lvl <= p.lvl) want.classFeat.push({ auto: `sub:${p.sub.id}:${f.lvl}:${f.name}`, name: f.name, text: f.text, src: `${p.sub.name} ${f.lvl}`, lvl: f.lvl, ...(f.remind?.on ? { remind: f.remind } : {}) });
+      for (const f of p.sub.features || []) if (f.lvl <= p.lvl && featApplies(c, p.sub, f, picked)) want.classFeat.push({ auto: `sub:${p.sub.id}:${f.lvl}:${f.name}`, name: f.name, text: f.text, src: `${p.sub.name} ${f.lvl}`, lvl: f.lvl, ...(f.remind?.on ? { remind: f.remind } : {}) });
       rule(p.sub, 'classFeat');
     }
   }
