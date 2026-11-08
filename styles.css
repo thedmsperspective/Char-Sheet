@@ -243,6 +243,7 @@ select.f{cursor:pointer}
 .lvlline span{color:var(--text);font-weight:700}
 .headgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 12px}
 .headgrid.six{grid-template-columns:repeat(6,minmax(0,1fr))}
+.headgrid.seven{grid-template-columns:repeat(7,minmax(0,1fr))}
 .headgrid .wide{grid-column:1/-1}
 .clsrow{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1.4fr) auto auto auto;gap:6px;align-items:center;margin-bottom:4px}
 .clsrow .mini select{width:auto}
@@ -690,6 +691,7 @@ html[data-red="1"] .syncbtn .dot{background:#fff}
   .cols.three{grid-template-columns:repeat(2,minmax(0,1fr))}
   .cols.three .col:last-child{grid-column:1/-1;grid-template-columns:repeat(2,minmax(0,1fr))}
   .headgrid.six{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .headgrid.seven{grid-template-columns:repeat(4,minmax(0,1fr))}
 }
 @media (max-width:900px){
   .sheethead{grid-template-columns:1fr}
@@ -712,7 +714,7 @@ html[data-red="1"] .syncbtn .dot{background:#fff}
   .colA{grid-template-columns:1fr}
   .abilities{grid-template-columns:repeat(3,minmax(0,1fr))}
   .headgrid{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .headgrid.six{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .headgrid.six,.headgrid.seven{grid-template-columns:repeat(2,minmax(0,1fr))}
   .clsrow{grid-template-columns:1fr 1fr;}
   .trio{grid-template-columns:1fr 1fr}
   .trio .stat:last-child{grid-column:1/-1}

@@ -787,15 +787,17 @@ function pageCharacter(c) {
   return `
   <header class="sheethead panel">
     <div class="nameblock"><div class="charname static">${esc(c.name) || 'Unnamed character'}</div></div>
-    <div class="headgrid six">
-      ${['age', 'height', 'weight', 'eyes', 'skin', 'hair'].map(k => `<label class="hf"><span class="lbl">${k[0].toUpperCase() + k.slice(1)}</span>${txt(c, `desc.${k}`)}</label>`).join('')}
+    <div class="headgrid six seven">
+      ${['gender', 'age', 'height', 'weight', 'eyes', 'skin', 'hair'].map(k => `<label class="hf"><span class="lbl">${k[0].toUpperCase() + k.slice(1)}</span>${txt(c, `desc.${k}`)}</label>`).join('')}
     </div>
   </header>
   <div class="cols three">
     <div class="col">${panel('Character appearance', `${imgSlot(c, 'desc.portrait', 'Portrait')}${area(c, 'desc.appearance', 'What others see', 5)}`)}
       ${featureList(c, 'extraFeat', 'Additional features &amp; traits', { one: 'a feature' })}</div>
     <div class="col">${panel('Faction', `<label class="hf"><span class="lbl">Name</span>${txt(c, 'faction.name')}</label>${imgSlot(c, 'faction.symbol', 'Symbol')}${area(c, 'faction.notes', 'Rank, contacts, standing', 5)}`)}
-      ${panel('Notes', area(c, 'notes', 'Anything else', 8))}</div>
+      ${panel('Backstory', area(c, 'notes', 'Where they come from, who they were, what happened to them', 10))}
+      ${panel('Player goals for the character', area(c, 'goalsPlayer', 'What you, the player, want for this character: moments, growth, how their story could go', 4))}
+      ${panel('Character goals', area(c, 'goalsChar', 'What the character wants, in their own eyes', 4))}</div>
     <div class="col">${[['personality', 'Personality traits'], ['ideals', 'Ideals'], ['bonds', 'Bonds'], ['flaws', 'Flaws'], ['enemies', 'Enemies']].map(([k, n]) => panel(n, area(c, k, '', 3))).join('')}</div>
   </div>`;
 }
