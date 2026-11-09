@@ -420,9 +420,9 @@ export function refreshCombatBar(root, c) {
 }
 // Ask the combat tracker: straight over the live link, and in the sheet file as a backup (the tracker uses whichever
 // reaches it first and ignores the other, since both carry the same id)
-function combatRequest(c, kind) {
+function combatRequest(c, kind, target = '') {
   const v = combatView(c);
-  c.combatReq = { id: uid(), kind, round: v?.round || 0, at: Date.now() };
+  c.combatReq = { id: uid(), kind, round: v?.round || 0, at: Date.now(), ...(target ? { target: String(target) } : {}) };
   stamp(c, 'combatReq'); ctx.save(c); ctx.rerender();
   if (c.liveKey) ctx.liveSend?.(c.liveKey, c.combatReq);
   ctx.syncSoon?.();
@@ -441,8 +441,12 @@ function combatBarInner(c) {
     v.point && (c.ip || 'ready') === 'ready' ? b('point', 'Interrupt (use my point)') : '',
     v.free ? b('free', 'Interrupt (free, I was hurt)') : '',
   ].join('');
+  // Picking who goes next (when the DM's Table Rules allow it): everyone who hasn't acted yet
+  const choose = v.picks && Array.isArray(v.choices) && v.choices.length && !v.pend
+    ? `<div class="cbpick"><span class="lbl">Who goes next?</span><span class="cbbtns">${v.choices.map(x => `<button class="btn small" type="button" data-act="cbt" data-k="pick" data-t="${esc(x.k)}"${waiting ? ' disabled' : ''}>${esc(x.n)}</button>`).join('')}</span></div>` : '';
+  const pend = v.pend ? `<small class="cbpend"><b>${esc(v.pend.n)}</b> goes next${v.pend.by ? ` (${esc(v.pend.by)}'s pick)` : ''}, unless your DM steps in.</small>` : '';
   return `<div class="combatbar${v.mine ? ' mine' : ''}" role="status"><span class="cbround">Round ${esc(v.round)}</span><b>${status}</b>
-    ${btns ? `<span class="cbbtns">${btns}</span>` : ''}${waiting ? '<small class="cbwait">Sent to your DM…</small>' : ''}</div>`;
+    ${btns ? `<span class="cbbtns">${btns}</span>` : ''}${waiting ? '<small class="cbwait">Sent to your DM…</small>' : ''}${choose}${pend}</div>`;
 }
 
 // What the DM's apps send to this sheet: conditions from the Bestiary's combat tracker, Session Notes (deaths,
@@ -1249,7 +1253,7 @@ function act(b, c, root) {
     }
     case 'shortrest': return ctx.shortRest();
     case 'longrest': return ctx.longRest();
-    case 'cbt': return combatRequest(c, d.k);
+    case 'cbt': return combatRequest(c, d.k, d.t || '');
     case 'ip': {
       // In a fight, using the point is an interrupt: it asks the combat tracker to start this character's turn
       const cv = combatView(c);
