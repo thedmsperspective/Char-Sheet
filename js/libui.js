@@ -31,6 +31,9 @@ const names = arr => arr.map(k => SKILLS.find(s => s[0] === k)?.[1] || k).join('
 const yes = (o, keys, labels) => keys.filter(k => o?.[k]).map(k => labels[k]).join(', ');
 const ARMOR_L = { light: 'Light armor', medium: 'Medium armor', heavy: 'Heavy armor', shields: 'Shields' };
 const WEAP_L = { simple: 'Simple weapons', martial: 'Martial weapons' };
+const capWord = k => String(k || '').replace(/\b\w/g, x => x.toUpperCase());
+/** Every weapon type in the Library: simple, martial and any of your own (exotic…) */
+const weaponKinds = () => [...new Set(['simple', 'martial', ...L.all('item').filter(x => x.cat === 'weapon' && x.weapon?.kind).map(x => String(x.weapon.kind).toLowerCase())])];
 const ABIL_N = Object.fromEntries(ABILS);
 
 export function entryHtml(e) {
@@ -87,6 +90,7 @@ export function entryHtml(e) {
     }
     const w = e.cat === 'weapon' && e.weapon;
     if (w) {
+      add('Weapon type', esc(capWord(w.kind || 'simple')) + (w.ranged ? ', ranged' : ', melee'));
       add('Damage', [esc(w.dmg), esc(w.type)].filter(Boolean).join(' ') + (w.versatile ? ` (${esc(w.versatile)} two-handed)` : ''));
       add('Properties', esc(w.props)); add('Range', w.range ? `${esc(w.range)} ft` : '');
     }
@@ -247,7 +251,12 @@ function editorHtml(d) {
       case 'invCatSel': return `<label class="hf">${lab}<select class="f" data-f="${path}"><option value="" ${!v ? 'selected' : ''}>By its kind (${esc(({ armor: 'Armor & Clothing', weapon: 'Weapons', tool: 'Tools & Kits' })[d.cat] || 'General Items')})</option>${opt([['armor', 'Armor & Clothing'], ['weapons', 'Weapons'], ['tools', 'Tools & Kits'], ['treasure', 'Treasure & Trinkets'], ['components', 'Spell Components'], ['general', 'General Items']], v || '')}</select></label>`;
       case 'subSpellSel': return `<label class="hf wide">${lab}<select class="f" data-f="${path}"><option value="" ${!v ? 'selected' : ''}>The usual for its class${d.parent ? ` (${M.subSpellMode({ parent: d.parent }) === 'added' ? 'added to the spell list' : M.subSpellMode({ parent: d.parent }) === 'known' ? 'always known' : 'always prepared'})` : ''}</option>${opt([['prepared', 'Always prepared (domain, oath, circle spells)'], ['known', "Always known, and don't count against spells known"], ['added', 'Added to the class spell list to choose from (expanded spells)']], v || '').replace(/<option value=""[^>]*>[^<]*<\/option>/, '')}</select></label>`;
       case 'armorKind': return `<label class="hf">${lab}<select class="f" data-f="${path}">${opt([['light', 'Light'], ['medium', 'Medium'], ['heavy', 'Heavy'], ['shield', 'Shield']], v || 'light')}</select></label>`;
-      case 'weapKind': return `<label class="hf">${lab}<select class="f" data-f="${path}">${opt([['simple', 'Simple'], ['martial', 'Martial']], v || 'simple')}</select></label>`;
+      case 'weapKind': {
+        // Simple and Martial, plus any type of your own already in your Library (Exotic…); a new one only lives in your Library
+        const own = weaponKinds().filter(k => k !== 'simple' && k !== 'martial');
+        if (v && !['simple', 'martial', ...own].includes(v)) own.push(v);
+        return `<label class="hf">${lab}<select class="f" data-f="${path}" data-weapkind>${opt([['simple', 'Simple'], ['martial', 'Martial'], ...own.map(k => [k, capWord(k)]), ['__new', '+ New weapon type…']], v || 'simple')}</select></label>`;
+      }
       case 'langKind': return `<label class="hf">${lab}<select class="f" data-f="${path}">${opt([['Standard', 'Standard'], ['Exotic', 'Exotic'], ['Secret', 'Secret']], v)}</select></label>`;
       case 'raceParent': return `<label class="hf">${lab}<select class="f" data-f="${path}">${opt([['', 'Not a subrace'], ...L.all('race').filter(r => !r.parent && r.id !== d.id).map(r => [r.id, r.name])], v)}</select></label>`;
       case 'classSel': return `<label class="hf">${lab}<select class="f" data-f="${path}">${opt([['', 'Choose a class'], ...L.all('class').map(r => [r.id, r.name])], v)}</select></label>`;
@@ -392,6 +401,12 @@ function onInput(e) {
     if (!d.name) d.name = `Replicate Magic Item: ${hit.name}`;
     d.infusion = true;
     return render();
+  }
+  if (el.dataset.weapkind != null && el.value === '__new') {
+    if (e.type !== 'change') return;
+    const n = (prompt('Name of the new weapon type (e.g. Exotic). It only exists in your Library.') || '').trim().replace(/\s+/g, ' ').slice(0, 30);
+    if (n) setPath(d, el.dataset.f, n.toLowerCase());
+    return keepScroll(render);
   }
   if (el.dataset.xtkind != null) {
     if (e.type !== 'change') return;
