@@ -1,7 +1,7 @@
 // Library screen: browse and read entries; the DM also adds and edits them.
 import * as L from './library.js';
 import { getPath, setPath } from './model.js';
-import { ABILS, SKILLS, DEFENSE_KINDS } from './rules.js';
+import { ABILS, SKILLS, DEFENSE_KINDS, mcDefault } from './rules.js';
 import { esc, REMIND_ON } from './sheet.js';
 import { fmt } from './text.js';
 import { levelsToText, textToLevels } from './options.js';
@@ -62,6 +62,7 @@ export function entryHtml(e) {
     const ft = L.get(e.feat); add('Background feat', ft ? `<button class="linkbtn" type="button" data-libopen="${ft.id}">${esc(ft.name)}</button>` : (e.feat ? 'Missing from the library' : ''));
   }
   if (e.type === 'feat') add('Prerequisite', esc(e.prereq));
+  if (e.type === 'class') add('Multiclassing prerequisite', esc(e.mc || mcDefault(e.name)));
   if (e.type === 'option') {
     add('Group', esc(e.group));
     add('For', (e.owners || []).map(id => L.get(id)?.name).filter(Boolean).map(esc).join(', '));
@@ -185,7 +186,7 @@ const FIELDS = {
     ['abil', 'Ability score increases', 'abil'], ['abilNote', 'Ability choice the player makes', 'text', 'Choose 2 other ability scores to increase by 1.'], ['languages', 'Languages', 'text', 'Common, Elvish'],
     ['skills', 'Skill proficiencies', 'skills'], ['armor', 'Armor', 'armor'], ['weapons', 'Weapons', 'weapons'], ['weaponsOther', 'Other weapons'], ['tools', 'Tools'],
     ['resist', 'Resistances and immunities', 'resist'], ['traits', 'Traits', 'named'], ['desc', 'Description', 'area'], ['tables', 'Tables: random rolls (d6, d100…), by level, or plain', 'xtables'], ['note', 'Table Rules note', 'area']],
-  class: [['name', 'Name'], ['src', 'Book and page'], ['hd', 'Hit die', 'hd'], ['saves', 'Saving throws', 'saves'], ['armor', 'Armor', 'armor'], ['weapons', 'Weapons', 'weapons'],
+  class: [['name', 'Name'], ['src', 'Book and page'], ['hd', 'Hit die', 'hd'], ['mc', 'Multiclassing prerequisite', 'text', 'Str 13, or Dex 13 and Wis 13'], ['saves', 'Saving throws', 'saves'], ['armor', 'Armor', 'armor'], ['weapons', 'Weapons', 'weapons'],
     ['weaponsOther', 'Other weapons'], ['tools', 'Tools'], ['skillChoice', 'Skill choice', 'text', 'Choose two from …'], ['spellAbil', 'Spellcasting ability', 'abilSel'],
     ['equipment', 'Starting equipment', 'area', '- (a) a rapier or (b) a longsword\n- Leather armor and a dagger'],
     ['caster', 'Spellcasting type', 'casterSel'], ['asi', 'Ability Score Improvement levels', 'numlist', '4, 8, 12, 16, 19'],

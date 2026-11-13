@@ -296,6 +296,21 @@ function levelUp() {
     return Math.max(1, base + conMod() + (Number(st.bonus) || 0));
   };
   const isAsi = () => (clsOf()?.asi || [4, 8, 12, 16, 19]).includes(newLvl());
+  // Multiclassing: the new class's prerequisite, and every class the character already has
+  const mcBad = () => {
+    if (st.idx !== 'new' || !st.newName.trim()) return [];
+    const k = clsOf();
+    return [{ name: k?.name || st.newName.trim(), r: R.meetsMc(c, k, st.newName) }, ...c.classes.filter(x => x.name).map(x => ({ name: x.name, r: R.meetsMc(c, L.get(x.clsId), x.name) }))].filter(x => !x.r.ok);
+  };
+  const mcBlocked = () => mcBad().length > 0 && (player() || !st.mcOk);
+  const mcHtml = () => {
+    if (st.idx !== 'new' || !st.newName.trim()) return '';
+    const bad = mcBad();
+    if (!bad.length) { const k = clsOf(), need = k?.mc || R.mcDefault(k?.name || st.newName); return need ? `<p class="hint">Multiclassing: meets the prerequisites (${esc(need)}${c.classes.length ? ', and for the classes they have' : ''}).</p>` : ''; }
+    return `<div class="lusec"><h3>Multiclassing prerequisites</h3>${bad.map(x => `<p class="warn">${esc(x.name)} needs ${esc(x.r.need)}: short of ${esc(x.r.short)}.</p>`).join('')}
+      <p class="hint">To take a new class, a character needs the scores for it and for every class they already have.</p>
+      ${player() ? '<p class="hint">Ask your DM if they want to allow it anyway.</p>' : `<label class="chk"><input type="checkbox" data-lu-mcok ${st.mcOk ? 'checked' : ''}><span>Allow it anyway (your call as DM)</span></label>`}</div>`;
+  };
   const needsSub = () => { const k = clsOf(); return k && !row()?.subId && newLvl() >= (k.subclassLevel || 3) && L.subclassesOf(k.id).length; };
   const draw = () => {
     const total = R.totalLevel(c) + 1;
@@ -305,7 +320,7 @@ function levelUp() {
       ${st.idx === 'new' ? `<select class="f" data-lu="newName" aria-label="New class"><option value="">Choose a class…</option>${L.all('class').filter(k => !c.classes.some(x => x.clsId === k.id)).map(k => `<option value="${esc(k.name)}" ${st.newName === k.name ? 'selected' : ''}>${esc(k.name)}</option>`).join('')}</select>` : ''}</div>`;
     if (st.idx === -1) return `<h2>Level up</h2>${choose}`;
     return `<h2>Level up to ${total}</h2>
-      ${choose}
+      ${choose}${mcHtml()}
       <div class="lusec"><h3>Hit points</h3>
         <div class="row"><label class="hf"><span class="lbl">Roll your d${die()}</span><input class="f n" data-lu="roll" inputmode="numeric" value="${esc(st.roll)}" placeholder="1–${die()}"></label>
         <button class="btn ${st.avg ? 'primary' : ''}" type="button" data-lu-avg>Take average (${avg()})</button></div>
@@ -322,13 +337,15 @@ function levelUp() {
         : `<input class="f" data-lu="feat" list="dl-feats" value="${esc(st.feat)}" placeholder="Feat name" autocomplete="off"><datalist id="dl-feats">${L.all('feat').map(f => `<option value="${esc(f.name)}"></option>`).join('')}</datalist>
           ${L.findByName('feat', st.feat)?.prereq ? `<p class="hint">Prerequisite: ${esc(L.findByName('feat', st.feat).prereq)}</p>` : ''}`}
       </div>` : ''}
-      <div class="row end"><button class="btn ghost" type="button" data-close>Cancel</button><button class="btn primary" type="button" data-lu-go ${g == null || (st.idx === 'new' && !st.newName.trim()) ? 'disabled' : ''}>Level up</button></div>`;
+      <div class="row end"><button class="btn ghost" type="button" data-close>Cancel</button><button class="btn primary" type="button" data-lu-go ${g == null || (st.idx === 'new' && !st.newName.trim()) || mcBlocked() ? 'disabled' : ''}>Level up</button></div>`;
   };
   actDialog(draw, (e, paint) => {
+    if (e.target.closest('[data-lu-mcok]')) { st.mcOk = e.target.closest('[data-lu-mcok]').checked; return paint(); }
     if (e.target.closest('[data-lu-avg]')) { st.avg = !st.avg; return paint(); }
     const asi = e.target.closest('[data-lu-asi]'); if (asi) { st.asi = asi.dataset.luAsi; return paint(); }
     if (e.target.closest('[data-lu-go]')) {
       const g = gain(); if (g == null) return;
+      if (mcBlocked()) { toast('The multiclassing prerequisites aren\'t met.'); return; }
       if (player() && st.idx === 'new' && !clsOf()) { toast('Pick a class from the list. Ask your DM to add it to the Library if it isn\'t there.'); return; }
       if (player() && isAsi() && st.asi === 'feat' && !L.findByName('feat', st.feat)) { toast('Pick a feat from the list. Ask your DM to add it to the Library if it isn\'t there.'); return; }
       const total = R.totalLevel(c) + 1;

@@ -185,3 +185,23 @@ export function consolidateCoins(coins) {
 // XP needed to reach each level (index = current level): XP_TABLE[1] is what level 2 needs
 export const XP_TABLE = [0, 300, 900, 2700, 6500, 14000, 23000, 34000, 48000, 64000, 85000, 100000, 120000, 140000, 165000, 195000, 225000, 265000, 305000, 355000, null];
 export const hitDiceTotal = c => (c.classes || []).map(k => ({ die: num(k.hd) || 8, total: num(k.level), used: num(k.hdUsed), name: k.name }));
+
+/* ---------- multiclassing prerequisites ----------
+   A class's "mc" text: "Str 13", "Str 13 or Dex 13", "Dex 13 and Wis 13". To multiclass, a character needs it for the class
+   they're adding and for every class they already have. Classes from before the field read the SRD's by name. */
+const MC_SRD = { barbarian: 'Str 13', bard: 'Cha 13', cleric: 'Wis 13', druid: 'Wis 13', fighter: 'Str 13 or Dex 13', monk: 'Dex 13 and Wis 13', paladin: 'Str 13 and Cha 13', ranger: 'Dex 13 and Wis 13', rogue: 'Dex 13', sorcerer: 'Cha 13', warlock: 'Cha 13', wizard: 'Int 13' };
+export const mcDefault = name => MC_SRD[String(name || '').trim().toLowerCase()] || '';
+const AB = { str: 'str', dex: 'dex', con: 'con', int: 'int', wis: 'wis', cha: 'cha' };
+/** Parse "Str 13 or Dex 13 and Wis 13" into alternatives, each a list of [ability, minimum] */
+export function parseMc(text) {
+  return String(text || '').split(/\s+or\s+/i).map(alt => [...alt.matchAll(/\b(str|dex|con|int|wis|cha)[a-z]*\.?\s*(\d+)/gi)].map(m => [AB[m[1].toLowerCase()], Number(m[2])])).filter(a => a.length);
+}
+/** Does the character meet a class's prerequisite? { ok, need: 'Dex 13 and Wis 13', short: 'Wisdom 13 (has 11)' } */
+export function meetsMc(c, cls, name = '') {
+  const text = cls?.mc || mcDefault(cls?.name || name);
+  const alts = parseMc(text);
+  if (!alts.length) return { ok: true, need: '' };
+  const NAMES = { str: 'Strength', dex: 'Dexterity', con: 'Constitution', int: 'Intelligence', wis: 'Wisdom', cha: 'Charisma' };
+  const miss = alts.map(alt => alt.filter(([a, n]) => score(c, a) < n).map(([a, n]) => `${NAMES[a]} ${n} (has ${score(c, a)})`));
+  return miss.some(m => !m.length) ? { ok: true, need: text } : { ok: false, need: text, short: miss.sort((a, b) => a.length - b.length)[0].join(' and ') };
+}
