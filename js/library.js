@@ -18,7 +18,7 @@ let srd = new Map();
 // Rules as written to start with; a table switches on its own rules (spell points, Active Initiative…) in Table Rules
 // abilMethods: how new characters may set their ability scores (rolling, the standard array, point buy)
 // edition: which rules the table plays, '2014' (SRD 5.1) or '2024' (SRD 5.2); the Library shows that edition's entries
-const DEFAULT_SETTINGS = { spellMode: 'slots', initiative: 'standard', leveling: 'xp', abilMethods: 'roll,array,pointbuy', edition: '2014', updated: 0 };
+const DEFAULT_SETTINGS = { spellMode: 'slots', initiative: 'standard', leveling: 'xp', abilMethods: 'roll,array,pointbuy', edition: '2014', notches: 'off', notchMax: '3,5,7,1,5,9,15,21,4,15', updated: 0 };
 let custom = { entries: {}, deleted: {}, updated: 0, settings: { ...DEFAULT_SETTINGS } };
 let merged = new Map();
 const listeners = new Set();

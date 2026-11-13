@@ -11,6 +11,7 @@ import * as T from './tables.js';
 import * as CR from './creatures.js';
 import * as INF from './infuse.js';
 import * as WM from './mastery.js';
+import * as N from './notches.js';
 import { renderThumb, openInkEditor } from './ink.js';
 
 let ctx; // { save(c), toast(msg), rerender() }
@@ -283,7 +284,7 @@ function masteryLine(c, a) {
 function attacks(c) {
   const rows = (c.attacks || []).map((a, i) => `
     <details class="atk" ${a._new ? 'open' : ''}>
-      <summary><span class="an">${esc(a.name) || 'New attack'}${masteryTag(c, a)}</span><b>${calc('atkbonus', i)}</b><span class="atkdmgtxt">${calc('atkdmg', i)}</span></summary>
+      <summary${N.attackBroken(c, a) ? ' class="atkbroken"' : ''}><span class="an">${esc(a.name) || 'New attack'}${masteryTag(c, a)}${N.attackBroken(c, a) ? ' <span class="tag bad">Broken</span>' : ''}</span><b>${calc('atkbonus', i)}</b><span class="atkdmgtxt">${calc('atkdmg', i)}</span></summary>
       <div class="atkedit">${masteryLine(c, a)}
         <label class="hf"><span class="lbl">Name</span><input class="f" data-k="attacks.${i}.name" value="${esc(a.name)}" autocomplete="off"${WM.has(c) ? ' data-rerender' : ''}></label>
         <label class="hf"><span class="lbl">Ability</span>${sel(c, `attacks.${i}.abil`, [['str', 'Strength'], ['dex', 'Dexterity'], ['finesse', 'Finesse (best of Str/Dex)'], ['spell', 'Spellcasting ability'], ['con', 'Constitution'], ['int', 'Intelligence'], ['wis', 'Wisdom'], ['cha', 'Charisma'], ['', 'None']])}</label>
@@ -319,7 +320,7 @@ function equipment(c) {
     </div>
     ${simpleList(c, 'consumables', 'Consumables', [['name', 'Consumable', 'f'], ['n', 'Left', 'n']])}
     ${(c.magicItems || []).length ? `<div class="miblock"><span class="lbl">Magic items from your DM</span>${c.magicItems.map(m => `<details class="mi"><summary><b>${esc(m.name)}</b>${m.attuned ? '<span class="attb">Attuned</span>' : ''}${miState(c, m)}</summary>
-      <p class="sub">${esc([m.type, m.base && m.base !== m.name ? m.base : '', m.attune].filter(Boolean).join(' · '))}</p>${miActs(c, m)}${fmt(m.desc)}</details>`).join('')}</div>` : ''}
+      <p class="sub">${esc([m.type, m.base && m.base !== m.name ? m.base : '', m.attune].filter(Boolean).join(' · '))}</p>${miActs(c, m)}${notchBox(c, `mi.${m.cid}`, miNotch(c, m))}${fmt(m.desc)}</details>`).join('')}</div>` : ''}
     ${infusedBlock(c)}
     <div class="attune">
       <div class="lh"><span class="lbl">Attuned magic items</span><span class="count">${calc('attuned')}</span></div>
@@ -810,6 +811,7 @@ function pageCharacter(c) {
 // Armor and weapons from the equipment list: wear the armor, hold the shield, make an attack for the weapon
 // A magic weapon, armor or shield: make its attack, wear it, hold it
 const miWorn = (c, m) => m.base === 'Shield' ? c.ac?.shieldFrom === `mi:${m.cid}` && Number(c.ac?.shield) > 0 : c.ac?.armorFrom === `mi:${m.cid}` && c.ac?.mode !== 'unarmored';
+const miNotch = (c, m) => { const st = N.miState(c, m); return st ? { ...st, m } : null; };
 function miState(c, m) {
   if (m.baseKind === 'armor') return miWorn(c, m) ? `<span class="attb">${m.base === 'Shield' ? 'In hand' : 'Worn'}</span>` : '';
   return '';
@@ -844,11 +846,49 @@ function eqActs(c, k, i, r) {
   }
   return '';
 }
+// Notches (Table Rules): a small tracker for a weapon, armor or shield. key: 'inv.<section>.<i>' or 'mi.<cid>'
+function notchBox(c, key, st) {
+  if (!st || !N.enabled()) return '';
+  const dm = !isPlayer();
+  const tag = st.broken ? `<span class="tag bad">Broken${st.magic ? (st.m && N.breakFate(st.m) === 'lost' ? ': its magic will be lost' : ': its magic is dormant') : ''}</span>`
+    : st.st === 'dormant' ? '<span class="tag">Magic dormant: an Artificer can awaken it</span>' : st.st === 'lost' ? '<span class="tag">Magic lost: an ordinary item now</span>' : '';
+  return `<span class="notches ${st.broken ? 'broken' : ''}"><span class="lbl">Notches</span> <b>${st.n}/${st.max}</b>
+    <button class="eqbtn nb" type="button" data-act="notch" data-key="${esc(key)}" data-d="1" aria-label="Add a notch" ${st.broken ? 'disabled' : ''}>+</button><button class="eqbtn nb" type="button" data-act="notch" data-key="${esc(key)}" data-d="-1" aria-label="Take a notch off" ${st.n ? '' : 'disabled'}>−</button>
+    ${st.n ? `<button class="linkbtn" type="button" data-act="repair" data-key="${esc(key)}">Repair</button>` : ''}${st.st === 'dormant' && dm ? `<button class="linkbtn" type="button" data-act="awaken" data-key="${esc(key)}">Awakened</button>` : ''}${tag}</span>`;
+}
+// + / − a notch, repair it, or (DM) mark its magic awakened
+function notchAct(c, act, key, delta, touch) {
+  const [, rest] = /^(?:inv|mi)\.(.*)$/.exec(key) || [];
+  const isMi = key.startsWith('mi.');
+  let st, name, rec;
+  if (isMi) { const m = (c.magicItems || []).find(x => x.cid === rest); if (!m) return; st = N.miState(c, m); name = m.name; c.wear = { ...(c.wear || {}) }; rec = c.wear[m.cid] = { n: 0, st: '', ...(c.wear[m.cid] || {}) }; st.m = m; }
+  else { const [sec, i] = rest.split('.'); const r = c.inv?.[sec]?.[Number(i)]; if (!r) return; st = N.rowState(sec, r); name = r.name || 'It'; rec = r; }
+  if (!st) return;
+  const path = isMi ? 'wear' : `inv.${rest.split('.')[0]}`;
+  const setN = n => { if (isMi) { rec.n = n; rec.mx = st.max; } else if (n) { rec.nt = n; rec.mx = st.max; } else { delete rec.nt; } }; // mx: the limit, for the Shops app to tell broken from notched
+  if (act === 'notch') {
+    const n = Math.max(0, Math.min(st.max, st.n + delta)); setN(n);
+    if (n >= st.max && delta > 0) ctx.toast(`${name} breaks! It can't be used until a blacksmith repairs it.`);
+    return touch(path);
+  }
+  if (act === 'awaken') { if (isMi) rec.st = ''; else delete rec.mst; ctx.toast(`${name}'s magic is awake again.`); return touch(path); }
+  // repair: a blacksmith for a broken item (8 hours at least); mending or tools otherwise, 30 minutes a notch
+  const how = st.broken ? `It's broken: only a blacksmith can repair it${st.magic ? '' : ' (8 hours at least)'}.`
+    : `${st.n} notch${st.n === 1 ? '' : 'es'}: ${st.n * 30 >= 60 ? `${st.n * 30 / 60} hour${st.n * 30 === 60 ? '' : 's'}` : '30 minutes'} with ${st.magic ? 'the <i>mending</i> cantrip (magic items can only be mended)' : '<i>mending</i> or the right tools (Smith\'s tools; Leatherworker\'s tools for armor)'}.`;
+  if (!confirm(`Repair ${name}?\n\n${how.replace(/<\/?i>/g, '')}`)) return;
+  if (st.broken && st.magic && !isMi) { rec.mst = 'dormant'; ctx.toast(`${name} is repaired. Its magic is dormant until an Artificer awakens it.`); }
+  else if (st.broken && st.magic && isMi) {
+    rec.st = N.breakFate(st.m);
+    ctx.toast(rec.st === 'lost' ? `${name} is repaired, but its magic is gone: it's an ordinary item now. An Enchanter can put a new enchantment on it.` : `${name} is repaired. Its magic is dormant until an Artificer awakens it.`);
+  } else ctx.toast(`${name} is repaired.`);
+  setN(0);
+  return touch(path);
+}
 function pageInventory(c) {
   const cats = R.INV_CATS.map(([k, n]) => {
     const rows = (c.inv[k] || []).map((r, i) => `
       <tr>
-        <td><input class="f" data-k="inv.${k}.${i}.name" value="${esc(r.name)}" aria-label="Item name" autocomplete="off">${eqActs(c, k, i, r)}</td>
+        <td><input class="f" data-k="inv.${k}.${i}.name" value="${esc(r.name)}" aria-label="Item name" autocomplete="off">${eqActs(c, k, i, r)}${k === 'armor' || k === 'weapons' ? notchBox(c, `inv.${k}.${i}`, N.rowState(k, r)) : ''}</td>
         <td><input class="f n" data-k="inv.${k}.${i}.wt" data-type="num" inputmode="decimal" value="${esc(r.wt)}" aria-label="Weight each"></td>
         <td><input class="f n" data-k="inv.${k}.${i}.qty" data-type="num" inputmode="numeric" value="${esc(r.qty)}" aria-label="Quantity"></td>
         <td class="num">${calc('rowwt', `${k}.${i}`)}</td>
@@ -878,7 +918,7 @@ function pageInventory(c) {
     <button class="btn small" type="button" data-act="consolidate">Consolidate into gold, silver, copper</button></div>
     <p class="hint">10 copper = 1 silver · 5 silver = 1 electrum · 2 electrum = 1 gold · 10 gold = 1 platinum. Consolidating leaves platinum alone.</p>`)}
   ${(c.magicItems || []).length ? panel('Magic items from your DM', `<div class="tablewrap"><table class="inv"><thead><tr><th>Item</th><th>Weight</th><th>Attunement</th></tr></thead><tbody>
-    ${c.magicItems.map(m => `<tr><td><details class="mi"><summary><b>${esc(m.name)}</b></summary><p class="sub">${esc(m.type || '')}</p>${fmt(m.desc)}</details></td><td class="num">${m.weight ? `${m.weight} lb` : '—'}</td><td>${m.attuned ? '<span class="attb">Attuned</span>' : esc(m.attune || 'None')}</td></tr>`).join('')}
+    ${c.magicItems.map(m => `<tr><td><details class="mi"><summary><b>${esc(m.name)}</b></summary><p class="sub">${esc(m.type || '')}</p>${notchBox(c, `mi.${m.cid}`, miNotch(c, m))}${fmt(m.desc)}</details></td><td class="num">${m.weight ? `${m.weight} lb` : '—'}</td><td>${m.attuned ? '<span class="attb">Attuned</span>' : esc(m.attune || 'None')}</td></tr>`).join('')}
     </tbody></table></div><p class="hint">Your DM manages these in the magic item app.</p>`, 'invcat') : ''}
   <div class="invgrid">${cats}</div>`;
 }
@@ -1225,6 +1265,7 @@ function act(b, c, root) {
       if (c.infAttuned[d.key]) delete c.infAttuned[d.key]; else c.infAttuned[d.key] = true;
       return touch('infAttuned');
     }
+    case 'notch': case 'repair': case 'awaken': return notchAct(c, d.act, d.key, Number(d.d) || 0, touch);
     case 'consolidate': c.coins = R.consolidateCoins(c.coins); ctx.toast('Coins consolidated.'); return touch('coins');
     case 'imgdel': setPath(c, d.p, ''); return touch(d.p);
     case 'abil': return ctx.openAbility(d.a);

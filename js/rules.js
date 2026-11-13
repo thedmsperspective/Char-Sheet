@@ -1,5 +1,6 @@
 // D&D 5e (2014) math for the sheet. Everything here is pure: give it a character, get numbers back.
 
+import * as N from './notches.js'; // weapons and armor that break (Table Rules: Notches)
 import * as F from './features.js';
 export { F };
 
@@ -38,11 +39,13 @@ export const sign = n => (n >= 0 ? `+${n}` : `−${Math.abs(n)}`);
    Each effect arrives with its source from the DM's apps ({ k, on, v, txt }); see core/effects.js for the kinds. */
 const fxCache = new WeakMap();
 export function activeFx(c) {
-  const hit = fxCache.get(c), worn = `${c.ac?.armorFrom}|${c.ac?.shieldFrom}|${c.ac?.shield}|${c.ac?.shieldOff}|${c.ac?.mode}`;
+  const hit = fxCache.get(c), worn = `${c.ac?.armorFrom}|${c.ac?.shieldFrom}|${c.ac?.shield}|${c.ac?.shieldOff}|${c.ac?.mode}|${N.enabled()}|${JSON.stringify(c.wear || {})}`;
   if (hit && hit.mi === c.magicItems && hit.sn === c.sn && hit.b === c.boons && hit.worn === worn) return hit.fx;
   const fx = [];
   for (const m of c.magicItems || []) {
     if (m.needsAttune && !m.attuned) continue;
+    // broken, or its magic lost or dormant (Notches): nothing
+    if (!N.magicWorks(c, m)) continue;
     // magic armor and shields only work while worn or held (the sheet's Wear / Use this shield)
     if (m.baseKind === 'armor' && !(m.base === 'Shield' ? c.ac?.shieldFrom === `mi:${m.cid}` && Number(c.ac?.shield) && c.ac?.shieldOff !== true : c.ac?.armorFrom === `mi:${m.cid}` && c.ac?.mode !== 'unarmored')) continue;
     for (const e of m.fx || []) fx.push({ ...e, src: m.name, item: m.name, cid: m.cid });
@@ -96,16 +99,16 @@ export function armorClass(c) {
   const a = c.ac || {};
   const dex = amod(c, 'dex');
   // a shield counts only while it's in hand (the sheet's Shield switch; on unless turned off)
-  const shield = num(a.shield), on = shield !== 0 && a.shieldOff !== true;
+  const shield = num(a.shield), on = shield !== 0 && a.shieldOff !== true && !N.brokenFrom(c, a.shieldFrom); // a broken shield is no help
   // without armor: the best of 10 + Dex and what the character's features allow (Unarmored Defense and the like)
   const baseFor = withShield => {
-    if (F.wearingArmor(c)) {
+    if (F.wearingArmor(c) && !N.brokenFrom(c, a.armorFrom)) { // broken armor: as if unarmored
       const cap = a.maxDex === '' || a.maxDex == null ? Infinity : num(a.maxDex);
       return { base: num(a.base || 10) + Math.min(dex, cap), how: a.armorName || 'Armor' };
     }
     let best = { base: 10 + dex + (a.unarmoredAbil ? amod(c, a.unarmoredAbil) : 0), how: a.unarmoredAbil ? `10 + Dex + ${ABIL_SHORT[a.unarmoredAbil]}` : '10 + Dex' };
     // a typed-in base with no armor named: never lower the AC below what was typed
-    if (a.mode !== 'unarmored' && num(a.base || 10) + dex > best.base) best = { base: num(a.base || 10) + dex, how: `${num(a.base || 10)} + Dex` };
+    if (a.mode !== 'unarmored' && !N.brokenFrom(c, a.armorFrom) && num(a.base || 10) + dex > best.base) best = { base: num(a.base || 10) + dex, how: `${num(a.base || 10)} + Dex` };
     // features win a tie, so the sheet says where the number comes from
     for (const o of F.unarmoredOptions(c, x => score(c, x))) if (!(o.noShield && withShield) && o.base >= best.base) best = { base: o.base, how: o.name };
     return best;

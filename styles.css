@@ -959,3 +959,10 @@ html[data-red="1"] .syncbtn .dot{background:#fff}
 .featchoice{border:1px solid var(--accent);border-radius:10px;padding:8px 10px;margin-bottom:10px;background:var(--accent-soft)}.featchoice .lh{display:flex;justify-content:space-between;gap:8px;margin-bottom:4px}.featchoice .btn{margin-top:6px}.featchosen{margin:0 0 8px}
 .combatbar .cbpick{flex-basis:100%;display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}.combatbar .cbpend{flex-basis:100%;color:var(--accent)}
 .entry .bgdesc{margin-top:14px}.entry .featbox{margin:16px 0;padding:10px 14px;border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:8px;background:var(--raise)}.entry .featbox h3{margin-top:0;border:0}
+
+/* notches */
+.notches{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;margin-top:4px;font-size:.85rem}
+.notches .lbl{margin:0}.notches button.nb{min-width:30px;padding:0 8px}
+.notches.broken b{color:var(--danger,#d66)}
+.atk summary.atkbroken .an{opacity:.65}
+.notches .tag{margin-left:2px}.notches .tag.bad{border-color:var(--danger,#d66);color:var(--danger,#d66)}
