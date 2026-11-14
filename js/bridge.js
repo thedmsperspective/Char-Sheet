@@ -328,7 +328,8 @@ export async function runBridge(io) {
 // The party file other apps read: one line per character with the numbers they need
 export async function writeParty(io) {
   const links = await getLinks();
-  const chars = (await db.all()).map(c => {
+  // a sheet with no name yet isn't a character for the other apps (it would show up there as "Unnamed")
+  const chars = (await db.all()).filter(c => String(c.name || '').trim()).map(c => {
     const { sn, mi } = resolvedLinks(c, links);
     return {
       id: c.id, fileId: io.sheetFileId(c.id) || '', name: c.name || '', player: c.player || '', campaignId: c.campaignId || '', liveKey: c.liveKey || '',
