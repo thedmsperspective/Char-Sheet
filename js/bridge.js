@@ -336,6 +336,8 @@ export async function writeParty(io) {
       race: c.race || '', maxHp: Number(c.hp?.max) || 0, hp: Number(c.hp?.cur) || 0, temp: Number(c.hp?.temp) || 0,
       ac: R.armorClass(c).withTemp, pp: R.passivePerception(c), ip: c.ip || 'ready', exhaustion: Number(c.exhaustion) || 0,
       snPcId: sn?.id || '', miPcId: mi?.id || '',
+      // for the DM's character arcs (Session Notes): the Character tab's Backstory and goals
+      story: { backstory: c.notes || '', goalsPlayer: c.goalsPlayer || '', goalsChar: c.goalsChar || '' },
     };
   });
   await io.writeAppdata(PARTY_FILE, { app: 'charsheet-party', v: 1, updated: Date.now(), folderId: io.folderId || '', chars });
