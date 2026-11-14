@@ -750,6 +750,19 @@ function pageSpells(c) {
   </div>`;
 }
 
+/* ---------- page: table rules ---------- */
+// The rules your DM shared (from Session Notes). A new or changed one shows Updated until you open it.
+export const rulesUnread = c => (c.tableRules || []).filter(r => (c.rulesSeen?.[r.id] || 0) < (r.at || 0)).length;
+function pageRules(c) {
+  const list = c.tableRules || [], seen = c.rulesSeen || {};
+  return `<div class="rulespage">${panel('Table Rules', list.length
+    ? `<p class="hint">Your DM's rules for this table. Tap one to read it.</p>${list.map(r => {
+      const upd = (seen[r.id] || 0) < (r.at || 0);
+      return `<details class="rule${upd ? ' upd' : ''}" data-rule="${esc(r.id)}"><summary><span>${esc(r.title || 'Table rule')}</span>${upd ? '<span class="tag upd">Updated</span>' : ''}</summary><div class="rulebody">${fmtText(r.text)}</div></details>`;
+    }).join('')}`
+    : '<p class="empty">Your DM hasn\'t shared any table rules yet.</p>')}</div>`;
+}
+
 /* ---------- page: notes ---------- */
 // A big typing area plus handwritten pages (S Pen, finger or mouse)
 function pageNotes(c) {
@@ -975,7 +988,7 @@ export function renderPage(root, c, page) {
 }
 function paintPage(root, c, page) {
   root.innerHTML = page === 'character' ? pageCharacter(c) : page === 'inventory' ? pageInventory(c) : page === 'spells' ? pageSpells(c) : page === 'notes' ? pageNotes(c)
-    : page === 'creatures' ? CR.pageCreatures(c, { isPlayer, panel }) : pageSheet(c);
+    : page === 'creatures' ? CR.pageCreatures(c, { isPlayer, panel }) : page === 'rules' ? pageRules(c) : pageSheet(c);
   if (page === 'notes') for (const cv of root.querySelectorAll('canvas[data-ink]')) renderThumb(cv, (c.inkPages || []).find(p => p.id === cv.dataset.ink)?.strokes);
   root.dataset.page = page;
   updateCalcs(root, c);
@@ -1036,6 +1049,16 @@ function stampPathFor(el, path) {
 }
 
 export function bindSheet(root, getChar) {
+  // opening a table rule marks it read
+  root.addEventListener('toggle', e => {
+    const d = e.target; if (!d.matches?.('details[data-rule]') || !d.open) return;
+    const c = getChar(), r = (c.tableRules || []).find(x => x.id === d.dataset.rule); if (!r) return;
+    if ((c.rulesSeen?.[r.id] || 0) >= (r.at || 0)) return;
+    c.rulesSeen = { ...(c.rulesSeen || {}), [r.id]: r.at || Date.now() };
+    stamp(c, 'rulesSeen'); ctx.save(c);
+    d.classList.remove('upd'); d.querySelector('.tag.upd')?.remove();
+    ctx.rulesTab?.();
+  }, true);
   root.addEventListener('input', e => {
     const el = e.target;
     if (el.matches('[data-theme-k]')) return themeInput(el, getChar());

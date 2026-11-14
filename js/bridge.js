@@ -270,6 +270,8 @@ export async function runBridge(io) {
     const { sn: pc, mi: holder } = resolvedLinks(c, links);
     const V = io.views || { snView, miView }; // the suite core's shared rules when available
     if (sources.sn) put('sn', V.snView(sources.sn, pc));
+    // the Table Rules the DM shared in Session Notes (slide sets switched on for the players' sheets)
+    if (sources.sn) put('tableRules', tableRules(sources.sn, pc?.campaignId || c.campaignId || ''));
     if (sources.mi) {
       const v = V.miView(sources.mi, seed, holder);
       sources.miCounts[c.id] = v ? { held: v.held, shown: v.items.length } : null;
@@ -323,6 +325,13 @@ export async function runBridge(io) {
     if (dirty) { await db.put(c); changed.push(c.name || 'a character'); }
   }
   return { changed };
+}
+
+// The write-ups the DM shared from Session Notes' Slides, for one campaign, in the DM's order
+function tableRules(sn, campaignId) {
+  return (sn.slides || []).filter(s => !s.deleted && s.campaignId === campaignId && s.rules?.on && String(s.rules.text || '').trim())
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || (a.createdAt || 0) - (b.createdAt || 0))
+    .map(s => ({ id: s.id, title: s.title || 'Table rule', text: s.rules.text, at: s.rules.at || s.updatedAt || 0 }));
 }
 
 // The party file other apps read: one line per character with the numbers they need

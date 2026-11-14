@@ -1,7 +1,7 @@
 import { db } from './db.js';
 import { newCharacter, upgrade, merge, stamp, uid, hpOp, getPath, setPath, replayHp } from './model.js';
 import * as R from './rules.js';
-import { initSheet, renderPage, bindSheet, updateCalcs, lookPanel, applyTheme, esc, remindersFor, setLiveView, combatView, refreshCombatBar } from './sheet.js';
+import { initSheet, renderPage, bindSheet, updateCalcs, lookPanel, applyTheme, esc, remindersFor, setLiveView, combatView, refreshCombatBar, rulesUnread } from './sheet.js';
 import { PRESETS } from './theme.js';
 import * as sync from './sync.js';
 import * as L from './library.js';
@@ -708,8 +708,18 @@ function titleChanged() {
   const n = state.cur?.name || 'Unnamed character';
   $('#title').textContent = n; document.title = n;
 }
+// The Table Rules tab shows once the DM has shared a rule, with a dot while one is new or changed
+function rulesTab() {
+  const c = state.cur, b = document.querySelector('[data-page="rules"]'); if (!b) return;
+  const has = !!(c?.tableRules || []).length, n = c ? rulesUnread(c) : 0;
+  b.hidden = !has;
+  b.classList.toggle('dot', n > 0);
+  b.setAttribute('aria-label', n ? `Table Rules, ${n} updated` : 'Table Rules');
+}
 function renderSheet() {
   const c = state.cur; if (!c) return;
+  if (state.page === 'rules' && !(c.tableRules || []).length) state.page = 'sheet';
+  rulesTab();
   titleChanged();
   for (const b of document.querySelectorAll('[data-page]')) b.setAttribute('aria-pressed', String(b.dataset.page === state.page));
   $('#arrangeBtn').setAttribute('aria-pressed', String(!!sheetCtx.arranging));
@@ -739,7 +749,7 @@ const HP_PATHS = new Set(['hpOps', 'hpBase', 'hp', 'hp.cur', 'hp.temp']);
 const NOT_LIVE = new Set(['combat', 'combatReq', 'edits', 'updated']); // turns travel on their own path
 // Fields that arrive from the DM's other apps on their own channels, or that are too big to send on every change
 // (handwritten note pages, every beast a Wild Shaper can take): these stay on Drive's few-second path
-const BIG_OR_CHANNEL = ['sn', 'magicItems', 'attuneMax', 'boons', 'conditions', 'wildBeasts', 'creatures', 'infusedHeld', 'inkPages'];
+const BIG_OR_CHANNEL = ['sn', 'tableRules', 'magicItems', 'attuneMax', 'boons', 'conditions', 'wildBeasts', 'creatures', 'infusedHeld', 'inkPages'];
 const notLive = path => HP_PATHS.has(path) || NOT_LIVE.has(path) || BIG_OR_CHANNEL.some(f => path === f || path.startsWith(f + '.'));
 const follow = { id: '', key: '', stop: null, known: new Set(), pushed: {}, stats: '', chT: {} };
 let liveRedraw = null;
@@ -1294,7 +1304,7 @@ function openSettings() {
 
 /* ---------- wiring ---------- */
 const sheetCtx = {
-  save, toast, titleChanged, openNew: null,
+  save, toast, titleChanged, openNew: null, rulesTab: () => rulesTab(),
   rerender: () => renderSheet(),
   themeChanged, closeLook, openAbility, openAc,
   picked, viewEntry,
