@@ -6,7 +6,7 @@ import { PRESETS } from './theme.js';
 import * as sync from './sync.js';
 import * as L from './library.js';
 import { resolvePicks, syncAuto, clearSoftChoices } from './autofill.js';
-import { initLibrary, showLibrary, entryHtml } from './libui.js';
+import { initLibrary, showLibrary, entryHtml, newEntry } from './libui.js';
 import * as M from './magic.js';
 import * as O from './options.js';
 import * as B from './bridge.js';
@@ -1415,7 +1415,22 @@ async function start() {
   // know whether this device is the DM's before drawing anything
   await checkEmail(sync.currentEmail());
   await showHome();
+  newFromLink();
+  window.addEventListener('hashchange', newFromLink);
   registerSW();
+}
+
+// A link like #newspell=Fire%20Storm (from the Bestiary) opens the Library with that spell started
+async function newFromLink() {
+  const m = /^#new(spell)=(.+)$/.exec(location.hash); if (!m) return;
+  history.replaceState(null, '', location.pathname + location.search);
+  const name = decodeURIComponent(m[2]).trim().slice(0, 80);
+  if (!isDm()) { toast('Only the DM can add spells to the Library.'); return; }
+  const have = L.findByName('spell', name) || L.all('spell', { anyEdition: true }).find(e => e.name.toLowerCase() === name.toLowerCase());
+  await openLibraryView(have?.id || null);
+  if (have) { toast(`${have.name} is already in the Library.`); return; }
+  newEntry('spell', name);
+  toast(`Fill in ${name} and save it. The Bestiary will find it.`);
 }
 
 function registerSW() {

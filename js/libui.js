@@ -19,6 +19,13 @@ export function initLibrary(el, helpers) {
   root.addEventListener('click', onClick);
   L.onLibraryChange(() => { if (root.offsetParent && !st.draft) render(); });
 }
+/** Start a new entry with its name filled in (the Bestiary sends you here for a spell it couldn't find) */
+export function newEntry(type, name = '') {
+  st.type = type; st.sel = null; st.q = ''; st.f = {};
+  st.draft = { ...L.blank(type), name };
+  render();
+  root.querySelector('[data-f="name"]')?.focus();
+}
 export function showLibrary(id = null) {
   if (id) { const e = L.get(id); if (e) { st.type = e.type; st.sel = id; } }
   st.draft = null;
