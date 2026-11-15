@@ -318,8 +318,8 @@ function equipment(c) {
       <span>Shield ${R.sign(Number(a.shield) || 0)}</span>
       <button class="linkbtn" type="button" data-act="ac">Edit</button>
     </div>
-    ${simpleList(c, 'consumables', 'Consumables', [['name', 'Consumable', 'f'], ['n', 'Left', 'n']])}
-    ${(c.magicItems || []).length ? `<div class="miblock"><span class="lbl">Magic items from your DM</span>${c.magicItems.map(m => `<details class="mi"><summary><b>${esc(m.name)}</b>${m.attuned ? '<span class="attb">Attuned</span>' : ''}${miState(c, m)}</summary>
+    ${consumablesBox(c)}
+    ${(c.magicItems || []).some(m => !m.consumable) ? `<div class="miblock"><span class="lbl">Magic items from your DM</span>${c.magicItems.filter(m => !m.consumable).map(m => `<details class="mi"><summary><b>${esc(m.name)}</b>${m.attuned ? '<span class="attb">Attuned</span>' : ''}${miState(c, m)}</summary>
       <p class="sub">${esc([m.type, m.base && m.base !== m.name ? m.base : '', m.attune].filter(Boolean).join(' · '))}</p>${miActs(c, m)}${notchBox(c, `mi.${m.cid}`, miNotch(c, m))}${fmt(m.desc)}</details>`).join('')}</div>` : ''}
     ${infusedBlock(c)}
     <div class="attune">
@@ -379,6 +379,50 @@ async function ammoRecover(c, i, to) {
   r.rq = { id, from, to, t: Date.now() };
   stamp(c, 'ammo'); ctx.save(c); ctx.rerender();
   ctx.toast('Sent to your DM. Your die goes up when they approve it.');
+}
+
+/* ---------- Consumables: everything that's used up, in stacks, with a Use button ----------
+   Mundane ones (alchemist's fire, torches, rations) are the character's own rows. Magic ones (potions, scrolls) come from
+   the DM's Magic Items app: Use takes one off here right away and, a few seconds later (time to Undo), tells that app,
+   which counts it and keeps the history. The sheet never rolls dice or changes HP. */
+const MUNDANE_USED_UP = /^(alchemist'?s fire|acid|antitoxin|holy water|oil|torch|rations?|healer'?s kit|poison|basic poison|candle|caltrops|ball bearings|potion)\b/i;
+export const consumableName = n => MUNDANE_USED_UP.test(String(n || '').trim());
+const miLeft = (c, m) => (Number(m.qty) || 1) - (c.miUse || []).filter(u => u.cid === m.cid && !(m.usedIds || []).includes(u.id)).length;
+const USE_WAIT = 6000;
+// the character as it is now, if it's still the one on screen (else the one given)
+const fresh = c => { const n = curChar(); return n && n.id === c.id ? n : c; };
+function sendMiUse(c0, u) {
+  const c = fresh(c0);
+  if (!c.liveKey || !ctx.liveUse) return;
+  ctx.liveUse(c.liveKey, u.id, { cid: u.cid, who: c.name || '', t: u.t }).then(ok => {
+    if (!ok) return;
+    const n = fresh(c), x = (n.miUse || []).find(y => y.id === u.id); if (!x || x.sent) return;
+    x.sent = true; stamp(n, 'miUse'); ctx.save(n);
+  });
+}
+/** Uses not sent yet (the link was down, or the sheet closed during the Undo wait): send them; drop the ones already counted */
+export function flushMiUses(c) {
+  const mis = new Map((c.magicItems || []).map(m => [m.cid, m]));
+  const keep = (c.miUse || []).filter(u => { const m = mis.get(u.cid); return m ? !(m.usedIds || []).includes(u.id) : !u.sent; });
+  if (keep.length !== (c.miUse || []).length) { c.miUse = keep; stamp(c, 'miUse'); ctx.save(c); }
+  for (const u of keep) if (!u.sent && Date.now() - u.t > USE_WAIT) sendMiUse(c, u);
+}
+function consumablesBox(c) {
+  const magic = (c.magicItems || []).filter(m => m.consumable).map(m => ({ m, left: miLeft(c, m) })).filter(x => x.left > 0);
+  const rows = (c.consumables || []).map((r, i) => {
+    const n = r.n === '' || r.n == null ? 1 : Number(r.n) || 0, wait = r.magic && r.fromShop;
+    return `<div class="crow">
+      <input class="f" data-k="consumables.${i}.name" value="${esc(r.name)}" placeholder="Torches" aria-label="Consumable" autocomplete="off">
+      <input class="f n" data-k="consumables.${i}.n" data-type="num" inputmode="numeric" value="${esc(r.n)}" placeholder="1" aria-label="How many">
+      ${wait ? '<span class="hint">Card on its way</span>' : `<button class="btn small" type="button" data-act="cuse" data-i="${i}" ${n > 0 ? '' : 'disabled'}>Use</button>`}
+      <button class="x" type="button" data-act="rowdel" data-list="consumables" data-i="${i}" aria-label="Remove">×</button></div>`;
+  }).join('');
+  const mrows = magic.map(({ m, left }) => `<details class="mi crow-mi"><summary><b>${esc(m.name)}</b> <span class="cnum">×${left}</span><button class="btn small" type="button" data-act="cmuse" data-cid="${esc(m.cid)}">Use</button></summary>
+      <p class="sub">${esc([m.type, m.attune].filter(Boolean).join(' · '))}</p>${fmt(m.desc)}</details>`).join('');
+  return `<div class="slist conslist"><span class="lbl">Consumables</span>
+    ${mrows ? `<div class="cmagic">${mrows}</div>` : ''}
+    <div data-list="consumables">${rows || (mrows ? '' : '<p class="empty">Nothing yet. Potions, scrolls, torches, rations and the like go here.</p>')}</div>
+    <button class="linkbtn" type="button" data-act="rowadd" data-list="consumables">Add a consumable</button></div>`;
 }
 
 function simpleList(c, path, title, cols, bare = false) {
@@ -983,7 +1027,7 @@ function pageInventory(c) {
     <button class="btn small" type="button" data-act="consolidate">Consolidate into gold, silver, copper</button></div>
     <p class="hint">10 copper = 1 silver · 5 silver = 1 electrum · 2 electrum = 1 gold · 10 gold = 1 platinum. Consolidating leaves platinum alone.</p>`)}
   ${(c.magicItems || []).length ? panel('Magic items from your DM', `<div class="tablewrap"><table class="inv"><thead><tr><th>Item</th><th>Weight</th><th>Attunement</th></tr></thead><tbody>
-    ${c.magicItems.map(m => `<tr><td><details class="mi"><summary><b>${esc(m.name)}</b></summary><p class="sub">${esc(m.type || '')}</p>${notchBox(c, `mi.${m.cid}`, miNotch(c, m))}${fmt(m.desc)}</details></td><td class="num">${m.weight ? `${m.weight} lb` : '—'}</td><td>${m.attuned ? '<span class="attb">Attuned</span>' : esc(m.attune || 'None')}</td></tr>`).join('')}
+    ${c.magicItems.filter(m => !m.consumable || miLeft(c, m) > 0).map(m => `<tr><td><details class="mi"><summary><b>${esc(m.name)}</b>${m.consumable ? ` ×${miLeft(c, m)}` : ''}</summary><p class="sub">${esc(m.type || '')}</p>${notchBox(c, `mi.${m.cid}`, miNotch(c, m))}${fmt(m.desc)}</details></td><td class="num">${m.weight ? `${m.weight} lb` : '—'}</td><td>${m.attuned ? '<span class="attb">Attuned</span>' : esc(m.attune || 'None')}</td></tr>`).join('')}
     </tbody></table></div><p class="hint">Your DM manages these in the magic item app.</p>`, 'invcat') : ''}
   <div class="invgrid">${cats}</div>`;
 }
@@ -1100,7 +1144,9 @@ function stampPathFor(el, path) {
   return list ? list.dataset.list : path;
 }
 
+let curChar = () => null; // the character on screen now (timers use it, not a copy from earlier)
 export function bindSheet(root, getChar) {
+  curChar = getChar;
   root.addEventListener('change', e => { const s = e.target.closest?.('[data-ammoto]'); if (s && s.value) ammoRecover(getChar(), Number(s.dataset.ammoto), Number(s.value)); });
   // opening a table rule marks it read
   root.addEventListener('toggle', e => {
@@ -1217,6 +1263,27 @@ function act(b, c, root) {
       const k = c.classes[d.i]; if (!k) return;
       k.hdUsed = Math.max(0, Math.min(Number(k.level) || 0, (Number(k.hdUsed) || 0) + Number(d.d)));
       return touch('classes');
+    }
+    case 'cuse': {
+      const list = c.consumables || [], r = list[d.i]; if (!r) return;
+      const before = JSON.parse(JSON.stringify(list)), n = (r.n === '' || r.n == null ? 1 : Number(r.n) || 0) - 1;
+      if (n <= 0) list.splice(d.i, 1); else r.n = n;
+      touch('consumables');
+      ctx.toast(n <= 0 ? `Used your last ${r.name || 'one'}.` : `Used ${r.name || 'one'}: ${n} left.`, () => { const x = fresh(c); x.consumables = before; stamp(x, 'consumables'); ctx.save(x); ctx.rerender(); });
+      return;
+    }
+    case 'cmuse': {
+      const m = (c.magicItems || []).find(x => x.cid === d.cid); if (!m || miLeft(c, m) <= 0) return;
+      const u = { id: uid(), cid: m.cid, t: Date.now(), sent: false };
+      c.miUse = [...(c.miUse || []), u]; stamp(c, 'miUse'); ctx.save(c); ctx.rerender();
+      const left = miLeft(c, m);
+      setTimeout(() => { const n = fresh(c), x = (n.miUse || []).find(y => y.id === u.id); if (x && !x.sent) sendMiUse(n, x); }, USE_WAIT);
+      ctx.toast(left > 0 ? `Used ${m.name}: ${left} left.` : `Used your last ${m.name}.`, () => {
+        const n = fresh(c), x = (n.miUse || []).find(y => y.id === u.id); if (!x) return;
+        if (x.sent) { ctx.toast('Too late to undo: your DM\'s app already has it. Ask your DM.'); return; }
+        n.miUse = n.miUse.filter(y => y.id !== u.id); stamp(n, 'miUse'); ctx.save(n); ctx.rerender();
+      });
+      return;
     }
     case 'ammodown': {
       const r = c.ammo?.[d.i]; if (!r) return;

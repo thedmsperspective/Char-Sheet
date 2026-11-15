@@ -990,3 +990,13 @@ html[data-red="1"] .syncbtn .dot{background:#fff}
 .ammo-acts,.ammo-set{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
 .ammo-acts .ammo-rec{width:auto;max-width:100%}
 .ammo-set .chk{font-size:.85rem}
+
+/* Consumables */
+.conslist .crow{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+.conslist .crow .f:first-child{flex:1;min-width:0}
+.conslist .crow .f.n{width:64px}
+.conslist .cmagic{margin-bottom:6px}
+.conslist .crow-mi summary{display:flex;align-items:center;gap:8px}
+.conslist .crow-mi summary b{flex:1;min-width:0}
+.conslist .cnum{font-weight:800;color:var(--accent)}
+.toast .toastbtn{margin-left:10px;background:none;border:1px solid currentColor;color:inherit;border-radius:8px;padding:2px 10px;font:inherit;font-weight:700;cursor:pointer}

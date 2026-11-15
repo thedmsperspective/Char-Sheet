@@ -1,7 +1,7 @@
 import { db } from './db.js';
 import { newCharacter, upgrade, merge, stamp, uid, hpOp, getPath, setPath, replayHp } from './model.js';
 import * as R from './rules.js';
-import { initSheet, renderPage, bindSheet, updateCalcs, lookPanel, applyTheme, esc, remindersFor, setLiveView, combatView, refreshCombatBar, rulesUnread } from './sheet.js';
+import { initSheet, renderPage, bindSheet, updateCalcs, lookPanel, applyTheme, esc, remindersFor, setLiveView, combatView, refreshCombatBar, rulesUnread, consumableName, flushMiUses } from './sheet.js';
 import { PRESETS } from './theme.js';
 import * as sync from './sync.js';
 import * as L from './library.js';
@@ -46,12 +46,14 @@ function refreshRoleUi() {
 }
 
 /* ---------- toasts + choices ---------- */
-function toast(msg) {
+function toast(msg, undo = null) {
   document.querySelectorAll('.toast').forEach(x => x.remove());
   const t = document.createElement('div');
   t.className = 'toast'; t.setAttribute('role', 'status'); t.textContent = msg;
+  // a slip of the finger (Use on the wrong potion): Undo, for a few seconds
+  if (undo) { const b = document.createElement('button'); b.type = 'button'; b.className = 'toastbtn'; b.textContent = 'Undo'; b.onclick = () => { t.remove(); undo(); }; t.append(' ', b); }
   document.body.append(t);
-  setTimeout(() => t.remove(), 4200);
+  setTimeout(() => t.remove(), undo ? 6000 : 4200);
 }
 function choose(question, options) {
   const dlg = $('#chooseDlg');
@@ -792,6 +794,8 @@ function liveFollow(c) {
         le[path] = t; follow.pushed[path] = t; c.updated = Math.max(c.updated || 0, t);
         db.put(c); liveStats(c); redrawSoon();
       }),
+      // magic consumables used while the link was down: send them now
+      ...(() => { setTimeout(() => { const c = cur(); if (c) flushMiUses(c); }, 1500); return []; })(),
       // the DM's answers to this character's requests (recovered ammunition)
       ...(typeof L.cwatchEach === 'function' ? [L.cwatchEach(key, 'ans', (rid, a) => {
         const c = cur(); if (!c || !a) return;
@@ -1064,6 +1068,15 @@ function pickEquipment(cat) {
     const it = L.get(b.dataset.eqadd); if (!it) return;
     // where it goes: the item's own section if the Library sets one; gear added from Treasure or Spell Components stays
     // there; otherwise by its kind
+    // used up (alchemist's fire, torches, rations…): one more in its Consumables stack
+    if (it.invCat === 'consumables' || (!it.invCat && (it.cat || 'gear') === 'gear' && consumableName(it.name))) {
+      const list = (c.consumables ||= []), have = list.find(r => String(r.name || '').toLowerCase() === it.name.toLowerCase());
+      if (have) have.n = (Number(have.n) || 1) + 1; else list.push({ id: uid(), name: it.name, n: 1, desc: it.desc || '' });
+      stamp(c, 'consumables'); save(c); st.added.push(it.name);
+      const box = dlg.querySelector('.eqlist'), top = box?.scrollTop || 0; paint(); const nb = dlg.querySelector('.eqlist'); if (nb) nb.scrollTop = top;
+      toast(`${it.name} added to your Consumables.`);
+      return;
+    }
     const where = it.invCat || (['treasure', 'components'].includes(cat) && (it.cat || 'gear') === 'gear' ? cat : EQ_CAT[it.cat] || 'general');
     const row = { id: uid(), name: it.name, wt: Number(it.wt) || 0, qty: 1, magic: false, desc: [it.cost ? `${it.cost}` : '', it.weapon?.props || ''].filter(Boolean).join(' · '), eqId: it.id };
     c.inv[where] = [...(c.inv[where] || []), row]; stamp(c, `inv.${where}`);
@@ -1318,6 +1331,8 @@ function openSettings() {
 const sheetCtx = {
   save, toast, titleChanged, openNew: null, rulesTab: () => rulesTab(),
   // a request that needs the DM's OK (their request box); null takes it back
+  // a magic consumable used (the Magic Items app counts it); null takes it back
+  liveUse: (key, id, u) => sync.live().then(L => (L ? L.cput(key, `used/${id}`, u) : false)).catch(() => false),
   liveAsk: (key, id, req) => sync.live().then(L => (L ? L.cput(key, `ask/${id}`, req) : false)).catch(() => false),
   rerender: () => renderSheet(),
   themeChanged, closeLook, openAbility, openAc,

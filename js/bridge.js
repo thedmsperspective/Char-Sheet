@@ -279,10 +279,14 @@ export async function runBridge(io) {
       // a magic item bought in a shop sat in the inventory as a placeholder: its real card is here now, so it goes
       if (v) {
         const names = v.items.map(m => String(m.name || '').toLowerCase());
+        const arrived = r => r.fromShop && names.some(n => n === String(r.name).toLowerCase() || n.startsWith(String(r.name).toLowerCase()));
         for (const [k, rows] of Object.entries(c.inv || {})) {
-          const keep = (rows || []).filter(r => !(r.fromShop && names.some(n => n === String(r.name).toLowerCase() || n.startsWith(String(r.name).toLowerCase()))));
+          const keep = (rows || []).filter(r => !arrived(r));
           if (keep.length !== (rows || []).length) { c.inv[k] = keep; stamp(c, `inv.${k}`); dirty = true; }
         }
+        // a potion or scroll bought in a shop waited in Consumables
+        const ck = (c.consumables || []).filter(r => !(r.magic && arrived(r)));
+        if (ck.length !== (c.consumables || []).length) { c.consumables = ck; stamp(c, 'consumables'); dirty = true; }
       }
       if (v && Number(c.attuneMax) !== v.limit) { c.attuneMax = v.limit; stamp(c, 'attuneMax'); dirty = true; }
     }
