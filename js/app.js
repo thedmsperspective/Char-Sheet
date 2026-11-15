@@ -792,6 +792,18 @@ function liveFollow(c) {
         le[path] = t; follow.pushed[path] = t; c.updated = Math.max(c.updated || 0, t);
         db.put(c); liveStats(c); redrawSoon();
       }),
+      // the DM's answers to this character's requests (recovered ammunition)
+      ...(typeof L.cwatchEach === 'function' ? [L.cwatchEach(key, 'ans', (rid, a) => {
+        const c = cur(); if (!c || !a) return;
+        const r = (c.ammo || []).find(x => x.rq?.id === rid);
+        if (r) {
+          const to = r.rq.to;
+          if (a.ok) r.die = Math.min(Number(r.max) || 12, to);
+          delete r.rq; stamp(c, 'ammo'); save(c); redrawSoon();
+          toast(a.ok ? `Your DM approved it: ${r.name || 'ammunition'} back up to ${to >= 4 ? `d${to}` : 'the last one'}.` : `Your DM didn't approve recovering ${r.name || 'that ammunition'}.`);
+        }
+        L.cput(key, `ans/${rid}`, null);
+      })] : []),
       // channels from the DM's other apps: Session Notes, Magic Items, boons, combat conditions, and later ones
       each(key, 'ch', (name, ch) => {
         const c = cur(); if (!c || !ch || (ch.t || 0) <= (follow.chT[name] || 0)) return;
@@ -1305,6 +1317,8 @@ function openSettings() {
 /* ---------- wiring ---------- */
 const sheetCtx = {
   save, toast, titleChanged, openNew: null, rulesTab: () => rulesTab(),
+  // a request that needs the DM's OK (their request box); null takes it back
+  liveAsk: (key, id, req) => sync.live().then(L => (L ? L.cput(key, `ask/${id}`, req) : false)).catch(() => false),
   rerender: () => renderSheet(),
   themeChanged, closeLook, openAbility, openAc,
   picked, viewEntry,

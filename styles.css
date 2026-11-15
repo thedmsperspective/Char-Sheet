@@ -977,3 +977,16 @@ html[data-red="1"] .syncbtn .dot{background:#fff}
 .rule.upd{border-color:var(--accent)}
 .rule .tag.upd{border-color:var(--accent);color:var(--accent);font-weight:700}
 .rulebody{padding:0 14px 12px}
+
+/* Ammunition dice */
+.ammolist .hint{margin:2px 0 6px}
+.ammo{border:1px solid var(--line);border-radius:10px;padding:8px;margin-bottom:6px;display:grid;gap:6px}
+.ammo.gone{opacity:.65}
+.ammo-top{display:flex;gap:6px;align-items:center}
+.ammo-top .f:first-child{flex:1;min-width:0}
+.ammo-top .f.n{width:72px}
+.ammo-die{min-width:64px;text-align:center;font-weight:800;font-size:1.15rem;border:2px solid var(--accent);color:var(--accent);border-radius:10px;padding:2px 8px}
+.ammo.gone .ammo-die{border-color:var(--line);color:var(--muted)}
+.ammo-acts,.ammo-set{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.ammo-acts .ammo-rec{width:auto;max-width:100%}
+.ammo-set .chk{font-size:.85rem}

@@ -304,7 +304,7 @@ function attacks(c) {
       <div class="stat"><span class="lbl">Spell save DC</span><b>${calc('spelldc')}</b></div>
       <div class="stat"><span class="lbl">Spell attack</span><b>${calc('spellatk')}</b></div>
     </div>
-    ${simpleList(c, 'ammo', 'Ammunition', [['name', 'Ammunition', 'f'], ['n', 'Left', 'n']])}`);
+    ${L.tableSettings().ammo === 'dice' ? ammoDice(c) : simpleList(c, 'ammo', 'Ammunition', [['name', 'Ammunition', 'f'], ['n', 'Left', 'n']])}`);
 }
 
 function equipment(c) {
@@ -327,6 +327,58 @@ function equipment(c) {
       ${simpleList(c, 'attuned', '', [['name', 'Item', 'f'], ['notes', 'Notes', 'f']], true)}
       <label class="mini">Attunement limit ${nfield(c, 'attuneMax')}</label>
     </div>`);
+}
+
+/* ---------- Ammunition dice (a Table Rules option, from Giffyglyph's Darker Dungeons) ----------
+   Each stack has a die instead of a count: d12 → d10 → d8 → d6 → d4 → the last one → gone. Players roll a real die
+   after each shot and tap "Rolled 1 or 2" to step it down. Ammo recovered after a fight goes to the DM for an OK
+   (their request box), and a shop can refill a stack. Special ammo can still be counted one by one. */
+export const AMMO_STEPS = [0, 1, 4, 6, 8, 10, 12, 20];
+export const ammoName = n => (n >= 4 ? `d${n}` : n === 1 ? 'Last one' : 'Gone');
+export const ammoMax = r => (AMMO_STEPS.includes(Number(r.max)) && Number(r.max) >= 4 ? Number(r.max) : 12);
+export const ammoDie = r => (r.die == null || r.die === '' ? ammoMax(r) : Math.min(ammoMax(r), AMMO_STEPS.includes(Number(r.die)) ? Number(r.die) : ammoMax(r)));
+const ammoKey = n => String(n || '').toLowerCase().replace(/\([^)]*\)/g, '').replace(/[^a-z ]/g, '').trim().replace(/s$/, '');
+function ammoDice(c) {
+  const list = c.ammo || [];
+  // more than one stack of the same ammunition: roll the smallest
+  const groups = new Map();
+  list.forEach((r, i) => { if (r.each || !ammoKey(r.name) || ammoDie(r) <= 0) return; const k = ammoKey(r.name); (groups.get(k) || groups.set(k, []).get(k)).push(i); });
+  const rollThis = new Set();
+  for (const ids of groups.values()) if (ids.length > 1) rollThis.add(ids.reduce((a, b) => (ammoDie(list[b]) < ammoDie(list[a]) ? b : a)));
+  const rows = list.map((r, i) => {
+    const die = ammoDie(r), max = ammoMax(r), up = AMMO_STEPS.filter(s => s > die && s <= max && s >= 4);
+    const each = !!r.each;
+    return `<div class="ammo${die <= 0 && !each ? ' gone' : ''}">
+      <div class="ammo-top"><input class="f" data-k="ammo.${i}.name" value="${esc(r.name)}" placeholder="Arrows" aria-label="Ammunition" autocomplete="off">
+        ${each ? `<input class="f n" data-k="ammo.${i}.n" data-type="num" inputmode="numeric" value="${esc(r.n)}" placeholder="Left" aria-label="How many left">`
+          : `<span class="ammo-die" title="Ammunition die">${ammoName(die)}</span>`}
+        <button class="x" type="button" data-act="rowdel" data-list="ammo" data-i="${i}" aria-label="Remove">×</button></div>
+      ${each ? '' : `<div class="ammo-acts">
+        ${rollThis.has(i) ? '<span class="tag">Roll this one</span>' : ''}
+        ${die > 0 ? `<button class="btn small" type="button" data-act="ammodown" data-i="${i}" title="Roll this die after a shot. On a 1 or 2 it gets one size smaller.">Rolled 1 or 2</button>` : '<span class="hint">All used up.</span>'}
+        ${r.rq ? `<span class="hint">Waiting for your DM: ${ammoName(r.rq.from)} → ${ammoName(r.rq.to)}</span><button class="linkbtn" type="button" data-act="ammocancel" data-i="${i}">Cancel</button>`
+          : up.length ? `<select class="f ammo-rec" data-ammoto="${i}" aria-label="Recover ammunition"><option value="">Recovered ammo…</option>${up.map(s => `<option value="${s}">Back up to ${ammoName(s)}</option>`).join('')}</select>` : ''}
+      </div>`}
+      <div class="ammo-set">${each ? '' : `<label class="mini">Full stack <select class="f" data-k="ammo.${i}.max" data-type="num" aria-label="Largest die for this stack">${[20, 12, 10, 8, 6, 4].map(s => `<option value="${s}" ${max === s ? 'selected' : ''}>d${s}</option>`).join('')}</select></label>`}
+        ${chk(c, `ammo.${i}.each`, 'Count each one (special ammo)', 'data-rerender')}</div>
+    </div>`;
+  }).join('');
+  return `<div class="slist ammolist"><span class="lbl">Ammunition</span><p class="hint">Ammunition dice: roll a stack's die after each shot. On a 1 or 2 it drops a size (d12 → d10 → d8 → d6 → d4 → the last one). Roll the smallest stack first.</p>
+    <div data-list="ammo">${rows || '<p class="empty">No ammunition yet.</p>'}</div>
+    <button class="linkbtn" type="button" data-act="rowadd" data-list="ammo">Add ammunition</button></div>`;
+}
+// Recovered ammunition: the DM's OK first (their request box), unless this is the DM's own device
+async function ammoRecover(c, i, to) {
+  const r = c.ammo?.[i]; if (!r || !to) return;
+  const from = ammoDie(r);
+  if (!isPlayer()) { r.die = to; delete r.rq; stamp(c, 'ammo'); ctx.save(c); ctx.rerender(); ctx.toast(`${r.name || 'Ammunition'}: back up to ${ammoName(to)}.`); return; }
+  if (!c.liveKey || !ctx.liveAsk) { ctx.toast("Can't reach your DM right now. Ask them at the table."); ctx.rerender(); return; }
+  const id = uid();
+  const ok = await ctx.liveAsk(c.liveKey, id, { kind: 'ammo', who: c.name || '', name: r.name || 'ammunition', from, to, t: Date.now() });
+  if (!ok) { ctx.toast("Couldn't send that to your DM. Check your connection, or ask them at the table."); ctx.rerender(); return; }
+  r.rq = { id, from, to, t: Date.now() };
+  stamp(c, 'ammo'); ctx.save(c); ctx.rerender();
+  ctx.toast('Sent to your DM. Your die goes up when they approve it.');
 }
 
 function simpleList(c, path, title, cols, bare = false) {
@@ -1049,6 +1101,7 @@ function stampPathFor(el, path) {
 }
 
 export function bindSheet(root, getChar) {
+  root.addEventListener('change', e => { const s = e.target.closest?.('[data-ammoto]'); if (s && s.value) ammoRecover(getChar(), Number(s.dataset.ammoto), Number(s.value)); });
   // opening a table rule marks it read
   root.addEventListener('toggle', e => {
     const d = e.target; if (!d.matches?.('details[data-rule]') || !d.open) return;
@@ -1164,6 +1217,19 @@ function act(b, c, root) {
       const k = c.classes[d.i]; if (!k) return;
       k.hdUsed = Math.max(0, Math.min(Number(k.level) || 0, (Number(k.hdUsed) || 0) + Number(d.d)));
       return touch('classes');
+    }
+    case 'ammodown': {
+      const r = c.ammo?.[d.i]; if (!r) return;
+      const die = ammoDie(r), next = AMMO_STEPS[Math.max(0, AMMO_STEPS.indexOf(die) - 1)];
+      r.die = next;
+      if (next === 0) ctx.toast(`That was the last of your ${r.name || 'ammunition'}.`);
+      else if (next === 1) ctx.toast(`${r.name || 'Ammunition'}: down to the last one.`);
+      return touch('ammo');
+    }
+    case 'ammocancel': {
+      const r = c.ammo?.[d.i]; if (!r?.rq) return;
+      if (c.liveKey) ctx.liveAsk?.(c.liveKey, r.rq.id, null);
+      delete r.rq; return touch('ammo');
     }
     case 'use': {
       const f = c.limited[d.i]; const n = Number(d.n);
