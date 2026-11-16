@@ -165,10 +165,20 @@ export function damageText(c, atk) {
 export const coinCount = c => COINS.reduce((t, [k]) => t + num(c.coins?.[k]), 0);
 export const coinWeight = c => coinCount(c) / 100; // the table's tracker: 100 coins = 1 lb
 export function rowWeight(r) { return num(r.wt) * (r.qty === '' || r.qty == null ? 1 : num(r.qty)); }
+/** Does what's in this container count toward carried weight? An ordinary one's does; a magic one's only if the DM's
+ *  setting says so (a Bag of Holding's doesn't). A container this character doesn't have isn't counted at all. */
+export function bagCounts(c, key) {
+  const k = String(key || '');
+  if (k.startsWith('own:')) return (c.containers || []).some(x => `own:${x.id}` === k);
+  if (k.startsWith('mi:')) { const m = (c.magicItems || []).find(x => x.cid === k.split(':')[1]); return !!(m?.container?.counts); }
+  return false;
+}
 export function carried(c) {
   let w = coinWeight(c);
   for (const [k] of INV_CATS) for (const r of c.inv?.[k] || []) w += rowWeight(r);
-  for (const m of c.magicItems || []) w += Number(m.weight) || 0; // items the DM's magic item app gave this character
+  for (const [k, rows] of Object.entries(c.bags || {})) if (bagCounts(c, k)) for (const r of rows || []) w += rowWeight(r);
+  // items the DM's magic item app gave this character (one put inside a Bag of Holding or the like weighs nothing here)
+  for (const m of c.magicItems || []) { const inBag = c.inside?.[m.cid]; if (inBag && !bagCounts(c, inBag) && String(inBag).startsWith('mi:')) continue; w += Number(m.weight) || 0; }
   // infused items that are new objects (Replicate Magic Item): the artificer's own, and ones others gave them
   for (const i of c.infused || []) if (!i.holder || i.holder === c.id) w += Number(i.weight) || 0;
   for (const i of c.infusedHeld || []) w += Number(i.weight) || 0;

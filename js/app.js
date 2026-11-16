@@ -1,7 +1,7 @@
 import { db } from './db.js';
 import { newCharacter, upgrade, merge, stamp, uid, hpOp, getPath, setPath, replayHp } from './model.js';
 import * as R from './rules.js';
-import { initSheet, renderPage, bindSheet, updateCalcs, lookPanel, applyTheme, esc, remindersFor, setLiveView, combatView, refreshCombatBar, rulesUnread, consumableName, flushMiUses } from './sheet.js';
+import { initSheet, renderPage, bindSheet, updateCalcs, lookPanel, applyTheme, esc, remindersFor, setLiveView, combatView, refreshCombatBar, rulesUnread, consumableName, flushMiUses, chargeLeft } from './sheet.js';
 import { PRESETS } from './theme.js';
 import * as sync from './sync.js';
 import * as L from './library.js';
@@ -555,6 +555,7 @@ function shortRest() {
     if (e.target.closest('[data-sr-done]')) {
       let n = 0;
       for (const f of c.limited || []) if (f.rec === 'Short rest' && Number(f.left) !== Number(f.total)) { f.left = f.total; n++; }
+      for (const m of c.magicItems || []) if (m.charges?.rec === 'Short rest' && m.charges.regain === 'all' && Number(c.charges?.[m.cid]?.used)) { c.charges = { ...c.charges, [m.cid]: { used: 0 } }; stamp(c, 'charges'); n++; }
       // 2024 Rage: one use comes back on a short rest
       if (R.F.is2024() && R.F.canRage(c) && Number(c.rage?.used) > 0) { c.rage = { ...c.rage, used: Number(c.rage.used) - 1 }; stamp(c, 'rage'); n++; }
       M.restoreShort(c);
@@ -570,6 +571,9 @@ function longRest() {
   const st = { ate: true };
   const totalHd = c.classes.reduce((t, k) => t + (Number(k.level) || 0), 0);
   const regain = Math.max(1, Math.floor(totalHd / 2));
+  // magic items whose charges come back at dawn or on a long rest; a roll like 1d6 + 1 is the player's to roll
+  const recharge = (c.magicItems || []).filter(m => m.charges?.max > 0 && ['Dawn', 'Long rest', 'Short rest'].includes(m.charges.rec) && chargeLeft(c, m) < m.charges.max);
+  const rolls = {};
   const draw = () => `<h2>Long rest</h2>
     <ul class="restlist">
       <li>HP back to full (${c.hp.max}) and temporary HP cleared</li>
@@ -580,6 +584,9 @@ function longRest() {
       ${Number(c.exhaustion) ? '<li>Lower exhaustion by 1 (if you had food and water)</li>' : ''}
     </ul>
     ${Number(c.exhaustion) ? `<label class="chk"><input type="checkbox" data-ate ${st.ate ? 'checked' : ''}><span>Had food and water</span></label>` : ''}
+    ${recharge.length ? `<div class="recharge"><span class="lbl">Magic item charges</span>${recharge.map(m => /d\d/.test(m.charges.regain)
+      ? `<label class="hdspend"><span><b>${esc(m.name)}</b> regains ${esc(m.charges.regain)} <small>${chargeLeft(c, m)} of ${m.charges.max} left</small></span><input class="f n" data-chroll="${esc(m.cid)}" inputmode="numeric" placeholder="Roll" value="${esc(rolls[m.cid] ?? '')}" aria-label="What you rolled for ${esc(m.name)}"></label>`
+      : `<p class="sub"><b>${esc(m.name)}</b>: ${m.charges.regain === 'all' ? 'all charges come back' : `regains ${esc(m.charges.regain)}`}</p>`).join('')}</div>` : ''}
     <div class="row end"><button class="btn ghost" type="button" data-close>Cancel</button><button class="btn primary" type="button" data-lr-go>Finish long rest</button></div>`;
   actDialog(draw, e => {
     if (!e.target.closest('[data-lr-go]')) return;
@@ -587,6 +594,12 @@ function longRest() {
     let left = regain;
     for (const k of [...c.classes].sort((a, b) => Number(b.hd) - Number(a.hd))) { const back = Math.min(left, Number(k.hdUsed) || 0); k.hdUsed = (Number(k.hdUsed) || 0) - back; left -= back; }
     for (const f of c.limited || []) f.left = f.total;
+    // magic item charges: all, a set number, or what the player rolled
+    for (const m of recharge) {
+      const g = String(m.charges.regain || 'all'), used = Number(c.charges?.[m.cid]?.used) || 0;
+      const back = g === 'all' ? used : /d\d/.test(g) ? Math.max(0, parseInt(rolls[m.cid], 10) || 0) : Math.max(0, parseInt(g, 10) || 0);
+      if (back) { c.charges = { ...(c.charges || {}), [m.cid]: { used: Math.max(0, used - back) } }; stamp(c, 'charges'); }
+    }
     c.death = { s: 0, f: 0 };
     if (Number(c.exhaustion) && st.ate) c.exhaustion = Number(c.exhaustion) - 1;
     M.restoreAll(c);
@@ -597,7 +610,7 @@ function longRest() {
     save(c);
     $('#actDlg').close();
     toast('Long rest done. You wake refreshed.');
-  }, e => { if (e.target.matches('[data-ate]')) st.ate = e.target.checked; });
+  }, e => { if (e.target.matches('[data-ate]')) st.ate = e.target.checked; if (e.target.matches('[data-chroll]')) rolls[e.target.dataset.chroll] = e.target.value; });
 }
 
 /* ---------- Weapon Mastery (2024) ---------- */
@@ -799,6 +812,14 @@ function liveFollow(c) {
       // the DM's answers to this character's requests (recovered ammunition)
       ...(typeof L.cwatchEach === 'function' ? [L.cwatchEach(key, 'ans', (rid, a) => {
         const c = cur(); if (!c || !a) return;
+        // "It was destroyed" (a last charge): the DM's answer
+        const dead = Object.entries(c.chargeReq || {}).find(([, id]) => id === rid);
+        if (dead) {
+          const m = (c.magicItems || []).find(x => x.cid === dead[0]);
+          delete c.chargeReq[dead[0]]; stamp(c, 'chargeReq'); save(c); redrawSoon();
+          toast(a.ok ? `Your DM agreed: ${m?.name || 'the item'} is destroyed.` : `Your DM says ${m?.name || 'the item'} survives.`);
+          L.cput(key, `ans/${rid}`, null); return;
+        }
         const r = (c.ammo || []).find(x => x.rq?.id === rid);
         if (r) {
           const to = r.rq.to;

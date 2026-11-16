@@ -435,6 +435,26 @@ function simpleList(c, path, title, cols, bare = false) {
     <button class="linkbtn" type="button" data-act="rowadd" data-list="${path}">Add ${title ? title.toLowerCase().replace(/s$/, '') : 'one'}</button></div>`;
 }
 
+/* ---------- Charges on magic items from the DM (a Wand of Web's 7 charges; once a day for a Javelin of Lightning) ----------
+   Kept per item (c.charges[cid] = { used }), so they go with the item if the DM gives it to someone else. */
+export const chargeLeft = (c, m) => Math.max(0, (Number(m.charges?.max) || 0) - (Number(c.charges?.[m.cid]?.used) || 0));
+function itemCharges(c) {
+  const list = (c.magicItems || []).filter(m => m.charges?.max > 0);
+  return list.map(m => {
+    const ch = m.charges, max = Number(ch.max), left = chargeLeft(c, m), locked = m.needsAttune && !m.attuned;
+    const dots = max <= 12
+      ? `<div class="uses">${Array.from({ length: max }, (_, n) => `<button type="button" class="use ${n < left ? 'on' : ''}" data-act="chg" data-cid="${esc(m.cid)}" data-n="${n}" aria-label="Charge ${n + 1}" ${locked ? 'disabled' : ''}></button>`).join('')}</div>`
+      : `<span class="chgnum"><button class="btn small" type="button" data-act="chg1" data-cid="${esc(m.cid)}" ${locked || !left ? 'disabled' : ''}>Use 1</button> <b>${left}</b> of ${max}</span>`;
+    const back = ch.rec === 'None' ? "Doesn't come back" : `${ch.regain === 'all' ? (max === 1 ? 'Comes back' : 'All come back') : `Regains ${esc(ch.regain)}`} ${ch.rec === 'Dawn' ? 'at dawn' : `on a ${esc(ch.rec.toLowerCase())}`}`;
+    const pend = c.chargeReq?.[m.cid];
+    return `<div class="lim chg${locked ? ' locked' : ''}">
+      <span class="chgname"><b>${esc(m.name)}</b><small>${max === 1 && ch.regain === 'all' ? 'Once a day' : `${max} charges`} · ${back}${locked ? ' · <b>Attune to use</b>' : ''}</small></span>
+      ${dots}
+      ${!left && ch.last ? `<p class="chglast">${esc(ch.last)} ${pend ? '<span class="hint">Sent to your DM.</span>' : `<button class="linkbtn" type="button" data-act="chgdead" data-cid="${esc(m.cid)}">It was destroyed</button>`}</p>` : ''}
+    </div>`;
+  }).join('');
+}
+
 function limited(c) {
   const rec = [['Short rest', 'Short rest'], ['Long rest', 'Long rest'], ['Dawn', 'Dawn'], ['Other', 'Other']];
   const rows = (c.limited || []).map((f, i) => {
@@ -450,7 +470,8 @@ function limited(c) {
       <button class="x" type="button" data-act="rowdel" data-list="limited" data-i="${i}" aria-label="Remove">×</button>
     </div>`;
   }).join('');
-  return panel('Limited features', `<div data-list="limited">${rows || '<p class="empty">Rage, Ki, Channel Divinity, Bardic Inspiration…</p>'}</div>
+  const items = itemCharges(c);
+  return panel('Limited features', `${items}<div data-list="limited">${rows || (items ? '' : '<p class="empty">Rage, Ki, Channel Divinity, Bardic Inspiration…</p>')}</div>
     <button class="linkbtn" type="button" data-act="rowadd" data-list="limited">Add a limited feature</button>
     <div class="abdc">
       <label class="hf"><span class="lbl">Ability save DC for</span>${txt(c, 'abilityDc.label', 'Ki, maneuvers…')}</label>
@@ -997,7 +1018,7 @@ function pageInventory(c) {
   const cats = R.INV_CATS.map(([k, n]) => {
     const rows = (c.inv[k] || []).map((r, i) => `
       <tr>
-        <td><input class="f" data-k="inv.${k}.${i}.name" value="${esc(r.name)}" aria-label="Item name" autocomplete="off">${eqActs(c, k, i, r)}${k === 'armor' || k === 'weapons' ? notchBox(c, `inv.${k}.${i}`, N.rowState(k, r)) : ''}</td>
+        <td><input class="f" data-k="inv.${k}.${i}.name" value="${esc(r.name)}" aria-label="Item name" autocomplete="off">${eqActs(c, k, i, r)}${k === 'armor' || k === 'weapons' ? notchBox(c, `inv.${k}.${i}`, N.rowState(k, r)) : ''}${moveSel(c, `inv:${k}`, i)}</td>
         <td><input class="f n" data-k="inv.${k}.${i}.wt" data-type="num" inputmode="decimal" value="${esc(r.wt)}" aria-label="Weight each"></td>
         <td><input class="f n" data-k="inv.${k}.${i}.qty" data-type="num" inputmode="numeric" value="${esc(r.qty)}" aria-label="Quantity"></td>
         <td class="num">${calc('rowwt', `${k}.${i}`)}</td>
@@ -1029,7 +1050,97 @@ function pageInventory(c) {
   ${(c.magicItems || []).length ? panel('Magic items from your DM', `<div class="tablewrap"><table class="inv"><thead><tr><th>Item</th><th>Weight</th><th>Attunement</th></tr></thead><tbody>
     ${c.magicItems.filter(m => !m.consumable || miLeft(c, m) > 0).map(m => `<tr><td><details class="mi"><summary><b>${esc(m.name)}</b>${m.consumable ? ` ×${miLeft(c, m)}` : ''}</summary><p class="sub">${esc(m.type || '')}</p>${notchBox(c, `mi.${m.cid}`, miNotch(c, m))}${fmt(m.desc)}</details></td><td class="num">${m.weight ? `${m.weight} lb` : '—'}</td><td>${m.attuned ? '<span class="attb">Attuned</span>' : esc(m.attune || 'None')}</td></tr>`).join('')}
     </tbody></table></div><p class="hint">Your DM manages these in the magic item app.</p>`, 'invcat') : ''}
+  ${containersHtml(c)}
   <div class="invgrid">${cats}</div>`;
+}
+
+/* ---------- Containers: a Bag of Holding (and the like) from the DM, and ordinary ones (a backpack, a sack) ----------
+   What's in a container lives in c.bags[key]: 'mi:<cid>' (or 'mi:<cid>:<pouch>') for a magic one, 'own:<id>' for the
+   player's own (c.containers). Each row remembers the section it came from (r.from) to go back to. A magic container
+   can be put inside another (c.inside[cid] = key). The contents of a magic container travel with it: when the DM gives
+   it to someone else, the DM's device moves them to that sheet. */
+function bagsOf(c) {
+  const out = [];
+  for (const m of c.magicItems || []) {
+    const ct = m.container; if (!ct) continue;
+    if (ct.pouches) for (const p of ct.pouches) out.push({ key: `mi:${m.cid}:${p.id}`, name: `${m.name}: ${p.name}`, cap: Number(p.cap) || 0, count: Number(p.count) || 0, counts: !!ct.counts, m });
+    else out.push({ key: `mi:${m.cid}`, name: m.name, cap: Number(ct.cap) || 0, count: 0, counts: !!ct.counts, m });
+  }
+  for (const x of c.containers || []) out.push({ key: `own:${x.id}`, name: x.name || 'Container', cap: 0, count: 0, counts: true, own: x });
+  return out;
+}
+const bagWeight = (c, b) => (c.bags?.[b.key] || []).reduce((t, r) => t + R.rowWeight(r), 0)
+  + (c.magicItems || []).filter(m => c.inside?.[m.cid] === b.key).reduce((t, m) => t + (Number(m.weight) || 0), 0);
+const bagCount = (c, b) => (c.bags?.[b.key] || []).reduce((t, r) => t + (r.qty === '' || r.qty == null ? 1 : Number(r.qty) || 0), 0);
+function bagLoad(c, b) {
+  if (b.count) { const n = bagCount(c, b); return { text: `${n} / ${b.count}`, over: n > b.count }; }
+  const w = Math.round(bagWeight(c, b) * 100) / 100;
+  return { text: b.cap ? `${w} / ${b.cap} lb` : `${w} lb`, over: !!b.cap && w > b.cap };
+}
+const catName = k => (R.INV_CATS.find(x => x[0] === k) || [k, 'General Items'])[1];
+// "Move to…" for a row: into any container (and out, back to its section)
+function moveSel(c, src, i) {
+  const bags = bagsOf(c); if (!bags.length) return '';
+  const row = src.startsWith('inv:') ? c.inv?.[src.slice(4)]?.[i] : c.bags?.[src.slice(4)]?.[i];
+  const opts = bags.filter(b => `bag:${b.key}` !== src).map(b => `<option value="bag:${esc(b.key)}">Into ${esc(b.name)}</option>`);
+  if (src.startsWith('bag:')) opts.unshift(`<option value="inv:${esc(row?.from || 'general')}">Take out (to ${esc(catName(row?.from || 'general'))})</option>`);
+  return opts.length ? `<select class="f movesel" data-move="${esc(src)}|${i}" aria-label="Move"><option value="">Move…</option>${opts.join('')}</select>` : '';
+}
+function containersHtml(c) {
+  const bags = bagsOf(c);
+  const mags = (c.magicItems || []).filter(m => m.container);
+  const block = b => {
+    const rows = (c.bags?.[b.key] || []).map((r, i) => `<tr>
+        <td><input class="f" data-k="bags.${b.key}.${i}.name" value="${esc(r.name)}" aria-label="Item name" autocomplete="off">${moveSel(c, `bag:${b.key}`, i)}</td>
+        <td><input class="f n" data-k="bags.${b.key}.${i}.wt" data-type="num" inputmode="decimal" value="${esc(r.wt)}" aria-label="Weight each"></td>
+        <td><input class="f n" data-k="bags.${b.key}.${i}.qty" data-type="num" inputmode="numeric" value="${esc(r.qty)}" aria-label="Quantity"></td>
+        <td class="num">${Math.round(R.rowWeight(r) * 100) / 100}</td>
+        <td><button class="x" type="button" data-act="rowdel" data-list="bags.${b.key}" data-i="${i}" aria-label="Remove">×</button></td></tr>`).join('');
+    const nested = (c.magicItems || []).filter(m => c.inside?.[m.cid] === b.key).map(m => `<li>${esc(m.name)}</li>`).join('');
+    const load = bagLoad(c, b);
+    return `<div class="bag${load.over ? ' over' : ''}">
+      <div class="baghead">${b.own ? `<input class="f" data-k="containers.${(c.containers || []).indexOf(b.own)}.name" value="${esc(b.own.name)}" aria-label="Container name" autocomplete="off">` : `<b>${esc(b.name)}</b>`}
+        <span class="bagload">${esc(load.text)}</span>
+        ${b.own ? `<button class="x" type="button" data-act="bagdel" data-id="${esc(b.own.id)}" aria-label="Remove this container">×</button>` : ''}</div>
+      ${load.over ? `<p class="warn">${b.count ? 'More than it holds.' : `Over ${b.cap} lb${b.m && /bag of holding/i.test(b.m.name) ? ': the bag would burst' : ': more than it can hold'}.`}</p>` : ''}
+      <p class="hint">${b.counts ? "What's inside counts toward your weight." : `What's inside doesn't count toward your weight${b.m?.weight ? ` (the ${esc(b.m.name)} itself does: ${b.m.weight} lb)` : ''}.`}</p>
+      ${rows ? `<div class="tablewrap"><table class="inv"><thead><tr><th>Item</th><th>Weight each</th><th>Qty</th><th>Weight</th><th></th></tr></thead><tbody data-list="bags.${b.key}">${rows}</tbody></table></div>` : '<p class="empty">Empty. Use Move… on any item to put it in here.</p>'}
+      ${nested ? `<p class="sub">Also inside:</p><ul class="bagnest">${nested}</ul>` : ''}
+    </div>`;
+  };
+  // a magic container can itself go inside another container
+  const insideSel = m => {
+    const opts = bags.filter(b => b.m?.cid !== m.cid && !(b.m && c.inside?.[b.m.cid] && String(c.inside[b.m.cid]).startsWith(`mi:${m.cid}`)));
+    return `<label class="mini">${esc(m.name)} is <select class="f" data-inside="${esc(m.cid)}" aria-label="Where ${esc(m.name)} is"><option value="">carried</option>${opts.map(b => `<option value="${esc(b.key)}" ${c.inside?.[m.cid] === b.key ? 'selected' : ''}>inside ${esc(b.name)}</option>`).join('')}</select></label>`;
+  };
+  return panel('Containers', `${bags.length ? `<div class="bags">${bags.map(block).join('')}</div>` : '<p class="empty">No containers yet. Add a backpack or a sack to keep things organized. A Bag of Holding (or the like) from your DM shows up here on its own.</p>'}
+    ${mags.length && bags.length > 1 ? `<div class="bagwhere">${mags.map(insideSel).join('')}</div>` : ''}
+    <button class="linkbtn" type="button" data-act="bagadd">Add a container (backpack, sack, chest…)</button>`, 'invcat bagpanel');
+}
+function moveRow(c, src, i, dest) {
+  const [sk, sKey] = [src.slice(0, 3), src.slice(4)], [dk, dKey] = [dest.slice(0, 3), dest.slice(4)];
+  const from = sk === 'inv' ? c.inv?.[sKey] : c.bags?.[sKey]; if (!from?.[i]) return;
+  const row = from.splice(i, 1)[0];
+  if (dk === 'bag') { if (sk === 'inv') row.from = sKey; ((c.bags ||= {})[dKey] ||= []).push(row); }
+  else { const cat = R.INV_CATS.some(x => x[0] === dKey) ? dKey : 'general'; delete row.from; (c.inv[cat] ||= []).push(row); }
+  if (sk === 'inv' || dk === 'inv') stamp(c, `inv.${sk === 'inv' ? sKey : dKey}`);
+  stamp(c, 'bags'); ctx.save(c); ctx.rerender();
+  const b = bagsOf(c).find(x => x.key === dKey);
+  if (dk === 'bag' && b && bagLoad(c, b).over) ctx.toast(`${row.name || 'That'} is in ${b.name}, but it's ${b.count ? 'more than it holds' : `over ${b.cap} lb now`}.`);
+  else ctx.toast(dk === 'bag' ? `${row.name || 'Item'} is in ${b?.name || 'the container'}.` : `${row.name || 'Item'} is back in ${catName(dKey)}.`);
+}
+// Put a magic container inside another. A Bag of Holding with another extradimensional space: the move happens and your
+// DM hears about it (their request box), nothing more here.
+async function putInside(c, cid, key) {
+  const m = (c.magicItems || []).find(x => x.cid === cid); if (!m) return;
+  c.inside = { ...(c.inside || {}) };
+  if (key) c.inside[cid] = key; else delete c.inside[cid];
+  stamp(c, 'inside'); ctx.save(c); ctx.rerender();
+  const host = key && String(key).startsWith('mi:') ? (c.magicItems || []).find(x => x.cid === String(key).split(':')[1]) : null;
+  if (host && m.container?.rift && host.container?.rift && c.liveKey && ctx.liveAsk) {
+    ctx.liveAsk(c.liveKey, uid(), { kind: 'rift', who: c.name || '', a: m.name, b: host.name, cids: [m.cid, host.cid], t: Date.now() });
+  }
+  ctx.toast(key ? `${m.name} is inside ${bagsOf(c).find(b => b.key === key)?.name || 'the container'}.` : `${m.name} is carried.`);
 }
 
 /* ---------- the Look drawer ---------- */
@@ -1148,6 +1259,12 @@ let curChar = () => null; // the character on screen now (timers use it, not a c
 export function bindSheet(root, getChar) {
   curChar = getChar;
   root.addEventListener('change', e => { const s = e.target.closest?.('[data-ammoto]'); if (s && s.value) ammoRecover(getChar(), Number(s.dataset.ammoto), Number(s.value)); });
+  root.addEventListener('change', e => {
+    const mv = e.target.closest?.('[data-move]');
+    if (mv && mv.value) { const [src, i] = mv.dataset.move.split('|'); moveRow(getChar(), src, Number(i), mv.value); return; }
+    const ins = e.target.closest?.('[data-inside]');
+    if (ins) putInside(getChar(), ins.dataset.inside, ins.value);
+  });
   // opening a table rule marks it read
   root.addEventListener('toggle', e => {
     const d = e.target; if (!d.matches?.('details[data-rule]') || !d.open) return;
@@ -1264,6 +1381,21 @@ function act(b, c, root) {
       k.hdUsed = Math.max(0, Math.min(Number(k.level) || 0, (Number(k.hdUsed) || 0) + Number(d.d)));
       return touch('classes');
     }
+    case 'bagadd': {
+      c.containers = [...(c.containers || []), { id: uid(), name: 'Backpack' }];
+      return touch('containers');
+    }
+    case 'bagdel': {
+      const x = (c.containers || []).find(y => y.id === d.id); if (!x) return;
+      const key = `own:${x.id}`, rows = c.bags?.[key] || [];
+      if (rows.length && !confirm(`Remove ${x.name || 'this container'}? What's in it goes back to your inventory.`)) return;
+      for (const r of rows) { const cat = R.INV_CATS.some(k => k[0] === r.from) ? r.from : 'general'; delete r.from; (c.inv[cat] ||= []).push(r); stamp(c, `inv.${cat}`); }
+      if (c.bags) delete c.bags[key];
+      for (const [cid, k] of Object.entries(c.inside || {})) if (k === key) delete c.inside[cid];
+      c.containers = c.containers.filter(y => y !== x);
+      stamp(c, 'bags'); stamp(c, 'inside');
+      return touch('containers');
+    }
     case 'cuse': {
       const list = c.consumables || [], r = list[d.i]; if (!r) return;
       const before = JSON.parse(JSON.stringify(list)), n = (r.n === '' || r.n == null ? 1 : Number(r.n) || 0) - 1;
@@ -1297,6 +1429,25 @@ function act(b, c, root) {
       const r = c.ammo?.[d.i]; if (!r?.rq) return;
       if (c.liveKey) ctx.liveAsk?.(c.liveKey, r.rq.id, null);
       delete r.rq; return touch('ammo');
+    }
+    case 'chg': case 'chg1': {
+      const m = (c.magicItems || []).find(x => x.cid === d.cid); if (!m?.charges) return;
+      const max = Number(m.charges.max), before = chargeLeft(c, m);
+      const left = d.act === 'chg1' ? Math.max(0, before - 1) : (Number(d.n) < before ? Number(d.n) : Number(d.n) + 1);
+      c.charges = { ...(c.charges || {}), [m.cid]: { used: Math.max(0, max - left) } };
+      if (!left && before && m.charges.last) ctx.toast(`That was the last charge. ${m.charges.last}`);
+      return touch('charges');
+    }
+    case 'chgdead': {
+      const m = (c.magicItems || []).find(x => x.cid === d.cid); if (!m) return;
+      if (!c.liveKey || !ctx.liveAsk) { ctx.toast("Can't reach your DM right now. Tell them at the table."); return; }
+      const id = uid();
+      ctx.liveAsk(c.liveKey, id, { kind: 'destroy', who: c.name || '', name: m.name, cid: m.cid, t: Date.now() }).then(ok => {
+        if (!ok) { ctx.toast("Couldn't send that to your DM. Tell them at the table."); return; }
+        c.chargeReq = { ...(c.chargeReq || {}), [m.cid]: id }; stamp(c, 'chargeReq'); ctx.save(c); ctx.rerender();
+        ctx.toast('Sent to your DM.');
+      });
+      return;
     }
     case 'use': {
       const f = c.limited[d.i]; const n = Number(d.n);

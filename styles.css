@@ -1000,3 +1000,22 @@ html[data-red="1"] .syncbtn .dot{background:#fff}
 .conslist .crow-mi summary b{flex:1;min-width:0}
 .conslist .cnum{font-weight:800;color:var(--accent)}
 .toast .toastbtn{margin-left:10px;background:none;border:1px solid currentColor;color:inherit;border-radius:8px;padding:2px 10px;font:inherit;font-weight:700;cursor:pointer}
+
+/* Containers */
+.bagpanel .bags{display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
+.bag{border:1px solid var(--line);border-radius:10px;padding:8px 10px;min-width:0;overflow:hidden}
+.bag.over{border-color:var(--bad, #c0392b)}
+.baghead{display:flex;align-items:center;gap:8px}
+.baghead b,.baghead .f{flex:1;min-width:0}
+.bagload{font-weight:700;color:var(--accent);white-space:nowrap}
+.bag .hint{margin:2px 0 6px}
+.bagnest{margin:2px 0 0 18px;padding:0}
+.bagwhere{display:flex;flex-wrap:wrap;gap:6px 14px;margin:8px 0}
+.movesel{display:block;margin-top:4px;width:auto;max-width:100%;font-size:.85rem}
+/* Item charges in Limited features */
+.lim.chg{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
+.lim.chg .chgname{display:flex;flex-direction:column;flex:1 1 180px;min-width:0}
+.lim.chg .chgname small{color:var(--muted)}
+.lim.chg.locked .uses{opacity:.45}
+.lim.chg .chglast{flex-basis:100%;margin:4px 0 0;font-size:.9rem}
+.recharge{margin:10px 0}

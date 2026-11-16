@@ -328,7 +328,43 @@ export async function runBridge(io) {
     }
     if (dirty) { await db.put(c); changed.push(c.name || 'a character'); }
   }
+  if (sources.mi) await handOver(all, sources.mi, changed);
   return { changed };
+}
+
+// A magic item given to someone else in the Magic Items app takes what's tied to it along: what's inside it (a Bag of
+// Holding's contents), its charges left, whatever was put inside it. When it's gone from the Magic Items app altogether
+// (destroyed, removed), those go too. An item held by someone without a sheet (the party stash) keeps them where they are.
+async function handOver(all, mi, changed) {
+  const inv = mi.state?.inv || [];
+  const exists = new Set(inv.map(x => x.cid));
+  const holderOf = new Map(); // cid -> character now holding it (by its card on their sheet)
+  for (const c of all) for (const m of c.magicItems || []) holderOf.set(m.cid, c);
+  const touched = new Set();
+  const cidOfKey = k => (String(k).startsWith('mi:') ? String(k).split(':')[1] : '');
+  for (const c of all) {
+    const moves = [];
+    for (const k of Object.keys(c.bags || {})) { const cid = cidOfKey(k); if (cid) moves.push(['bags', k, cid]); }
+    for (const cid of Object.keys(c.charges || {})) moves.push(['charges', cid, cid]);
+    // a magic item put inside another: if either one left this character, it's just carried again
+    for (const [cid, k] of Object.entries(c.inside || {})) {
+      const host = cidOfKey(k);
+      if ((host && holderOf.get(host) !== c) || holderOf.get(cid) !== c) { delete c.inside[cid]; stamp(c, 'inside'); touched.add(c); }
+    }
+    for (const [what, k, cid] of moves) {
+      if (holderOf.get(cid) === c) continue; // still here
+      const to = holderOf.get(cid);
+      if (!exists.has(cid)) { delete c[what][k]; stamp(c, what); touched.add(c); continue; } // destroyed or removed
+      if (!to) continue; // held by someone without a sheet: keep it here until it comes back
+      const val = c[what][k];
+      to[what] = { ...(to[what] || {}) };
+      if (what === 'bags') to.bags[k] = [...(to.bags[k] || []), ...(val || [])];
+      else to[what][k] = val;
+      delete c[what][k];
+      stamp(c, what); stamp(to, what); touched.add(c); touched.add(to);
+    }
+  }
+  for (const c of touched) { await db.put(c); if (!changed.includes(c.name || 'a character')) changed.push(c.name || 'a character'); }
 }
 
 // The write-ups the DM shared from Session Notes' Slides, for one campaign, in the DM's order
