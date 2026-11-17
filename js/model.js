@@ -67,6 +67,7 @@ export function stamp(c, path) {
 
 // Fill in anything an older or partial record is missing, without touching what's there
 export function upgrade(c) {
+  for (const x of c.containers || []) if (!('wt' in x)) x.wt = 0; // made before containers had their own weight
   const base = newCharacter();
   (function fill(dst, src) {
     for (const k of Object.keys(src)) {

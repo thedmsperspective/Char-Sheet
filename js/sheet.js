@@ -1073,7 +1073,7 @@ function bagsOf(c) {
     if (ct.pouches) for (const p of ct.pouches) out.push({ key: `mi:${m.cid}:${p.id}`, name: `${m.name}: ${p.name}`, cap: Number(p.cap) || 0, count: Number(p.count) || 0, counts: !!ct.counts, m });
     else out.push({ key: `mi:${m.cid}`, name: m.name, cap: Number(ct.cap) || 0, count: 0, counts: !!ct.counts, m });
   }
-  for (const x of c.containers || []) out.push({ key: `own:${x.id}`, name: x.name || 'Container', cap: 0, count: 0, counts: true, own: x });
+  for (const x of c.containers || []) out.push({ key: `own:${x.id}`, name: x.name || 'Container', cap: R.ownCap(x), count: 0, counts: true, own: x });
   return out;
 }
 const bagWeight = (c, b) => (c.bags?.[b.key] || []).reduce((t, r) => t + R.rowWeight(r), 0)
@@ -1103,6 +1103,12 @@ function moveSel(c, src, i) {
 const FOLD_KEY = 'cs-bag-folded';
 const folded = (() => { try { return new Set(JSON.parse(localStorage.getItem(FOLD_KEY) || '[]')); } catch { return new Set(); } })();
 const foldId = (c, b) => `${c.id}|${b.key}`;
+// an ordinary container's limit and its own weight: blank uses the SRD's for its name (Backpack 30 lb, Pouch 6 lb…)
+function ownSizes(c, x) {
+  const i = (c.containers || []).indexOf(x), sc = R.stdCap(x.name), sw = R.stdWt(x.name);
+  return `<div class="bagsize"><label class="mini">Holds <input class="f n" data-k="containers.${i}.cap" data-type="num" inputmode="decimal" value="${esc(x.cap ?? '')}" placeholder="${sc || 'any'}" aria-label="How many pounds it holds" data-rerender> lb</label>
+    <label class="mini">It weighs <input class="f n" data-k="containers.${i}.wt" data-type="num" inputmode="decimal" value="${esc(x.wt ?? '')}" placeholder="${sw || 0}" aria-label="What the container itself weighs" data-rerender> lb</label></div>`;
+}
 function containersHtml(c) {
   const bags = bagsOf(c);
   const mags = (c.magicItems || []).filter(m => m.container);
@@ -1117,10 +1123,10 @@ function containersHtml(c) {
     const load = bagLoad(c, b), shut = folded.has(foldId(c, b));
     const n = (c.bags?.[b.key] || []).length + (c.magicItems || []).filter(m => c.inside?.[m.cid] === b.key).length;
     return `<div class="bag${load.over ? ' over' : ''}${shut ? ' shut' : ''}">
-      <div class="baghead"><button class="bagfold" type="button" data-act="bagfold" data-key="${esc(b.key)}" aria-expanded="${!shut}" aria-label="${shut ? 'Open' : 'Fold'} ${esc(b.name)}" title="${shut ? 'Show what\'s inside' : 'Fold it up'}">${shut ? '▸' : '▾'}</button>${b.own ? `<input class="f" data-k="containers.${(c.containers || []).indexOf(b.own)}.name" value="${esc(b.own.name)}" aria-label="Container name" autocomplete="off">` : `<b>${esc(b.name)}</b>`}
+      <div class="baghead"><button class="bagfold" type="button" data-act="bagfold" data-key="${esc(b.key)}" aria-expanded="${!shut}" aria-label="${shut ? 'Open' : 'Fold'} ${esc(b.name)}" title="${shut ? 'Show what\'s inside' : 'Fold it up'}">${shut ? '▸' : '▾'}</button>${b.own ? `<input class="f" data-k="containers.${(c.containers || []).indexOf(b.own)}.name" value="${esc(b.own.name)}" aria-label="Container name" autocomplete="off" data-rerender>` : `<b>${esc(b.name)}</b>`}
         ${shut ? `<span class="bagcount">${n ? `${n} item${n === 1 ? '' : 's'}` : 'empty'}</span>` : ''}<span class="bagload">${esc(load.text)}</span>
         ${b.own ? `<button class="x" type="button" data-act="bagdel" data-id="${esc(b.own.id)}" aria-label="Remove this container">×</button>` : ''}</div>
-      ${shut ? (load.over ? '<p class="warn">Too full.</p>' : '') : `${load.over ? `<p class="warn">${b.count ? 'More than it holds.' : `Over ${b.cap} lb${b.m && /bag of holding/i.test(b.m.name) ? ': the bag would burst' : ': more than it can hold'}.`}</p>` : ''}
+      ${shut ? (load.over ? '<p class="warn">Too full.</p>' : '') : `${b.own ? ownSizes(c, b.own) : ''}${load.over ? `<p class="warn">${b.count ? 'More than it holds.' : `Over ${b.cap} lb${b.m && /bag of holding/i.test(b.m.name) ? ': the bag would burst' : ': more than it can hold'}.`}</p>` : ''}
       <p class="hint">${b.counts ? "What's inside counts toward your weight." : `What's inside doesn't count toward your weight${b.m?.weight ? ` (the ${esc(b.m.name)} itself does: ${b.m.weight} lb)` : ''}.`}</p>
       ${rows ? `<div class="tablewrap"><table class="inv"><thead><tr><th>Item</th><th>Weight each</th><th>Qty</th><th>Weight</th><th></th></tr></thead><tbody data-list="bags.${b.key}">${rows}</tbody></table></div>` : '<p class="empty">Empty. Use Move… on any item to put it in here.</p>'}
       ${nested ? `<p class="sub">Also inside:</p><ul class="bagnest">${nested}</ul>` : ''}`}
@@ -1406,7 +1412,7 @@ function act(b, c, root) {
       return ctx.rerender();
     }
     case 'bagadd': {
-      c.containers = [...(c.containers || []), { id: uid(), name: 'Backpack' }];
+      c.containers = [...(c.containers || []), { id: uid(), name: 'Backpack' }]; // a Backpack: holds 30 lb and weighs 5 until they change it
       return touch('containers');
     }
     case 'bagdel': {

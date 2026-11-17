@@ -1037,3 +1037,6 @@ html[data-red="1"] .syncbtn .dot{background:#fff}
 @keyframes lvlglow{50%{box-shadow:0 0 0 5px color-mix(in srgb,var(--accent) 25%,transparent),0 0 24px color-mix(in srgb,var(--accent) 70%,transparent)}}
 @media (prefers-reduced-motion:reduce){.btn.glow{animation:none}}
 .appr{display:inline-block;margin:4px 6px 0 0;font-size:.8rem;padding:1px 8px;border-radius:999px;border:1px solid var(--accent);color:var(--accent)}
+.bagsize{display:flex;flex-wrap:wrap;gap:4px 14px;margin:4px 0 2px}
+.bagsize .mini{display:inline-flex;align-items:center;gap:6px}
+.bagsize .f.n{width:64px}

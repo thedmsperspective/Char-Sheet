@@ -2,6 +2,7 @@
 import * as L from './library.js';
 import { getPath, setPath } from './model.js';
 import { ABILS, SKILLS, DEFENSE_KINDS, mcDefault } from './rules.js';
+import * as R from './rules.js';
 import { esc, REMIND_ON } from './sheet.js';
 import { fmt } from './text.js';
 import { levelsToText, textToLevels } from './options.js';
@@ -213,7 +214,7 @@ const FIELDS = {
     ['feature.name', 'Feature name'], ['feature.text', 'Feature text', 'area'], ['feat', 'Assigned feat', 'featSel'], ['equipment', 'Equipment', 'area'], ['desc', 'Description', 'area'], ['tables', 'Tables: random rolls (d6, d100…), by level, or plain', 'xtables'], ['note', 'Table Rules note', 'area']],
   feat: [['name', 'Name'], ['src', 'Book and page'], ['prereq', 'Prerequisite'], ['desc', 'Full text', 'area'], ['tables', 'Tables: random rolls (d6, d100…), by level, or plain', 'xtables'], ['note', 'Table Rules note', 'area']],
   boon: [['name', 'Name'], ['given', 'Given to', 'given'], ['dawnTemp', 'Temp HP at each dawn (0 for none)', 'num'], ['desc', 'Full text', 'area'], ['tables', 'Tables: random rolls (d6, d100…), by level, or plain', 'xtables'], ['note', 'Table Rules note', 'area']],
-  item: [['name', 'Name'], ['cat', 'Kind', 'itemCat'], ['invCat', 'Goes in (the inventory section it lands in)', 'invCatSel'], ['sub', 'Group', 'text', 'Martial Melee, Light armor, Standard Gear'], ['src', 'Book and page'], ['cost', 'Cost', 'text', '15 gp'], ['wt', 'Weight (lb)', 'num'],
+  item: [['name', 'Name'], ['cat', 'Kind', 'itemCat'], ['invCat', 'Goes in (the inventory section it lands in)', 'invCatSel'], ['sub', 'Group', 'text', 'Martial Melee, Light armor, Standard Gear'], ['src', 'Book and page'], ['cost', 'Cost', 'text', '15 gp'], ['wt', 'Weight (lb)', 'num'], ['container.on', 'Container', 'ctOn'], ['container.cap', 'Holds (lb)', 'ctCap'],
     ['armor.kind', 'Armor type', 'armorKind'], ['armor.base', "Base AC (a shield: its bonus)", 'num'], ['armor.dexCap', 'Max Dex bonus (blank for no limit, 0 for none)', 'num'], ['armor.str', 'Strength needed', 'num'], ['armor.stealthDis', 'Disadvantage on Stealth', 'bool'],
     ['weapon.kind', 'Weapon type', 'weapKind'], ['weapon.ranged', 'Ranged weapon', 'bool'], ['weapon.dmg', 'Damage dice', 'text', '1d8'], ['weapon.type', 'Damage type', 'text', 'slashing'],
     ['weapon.versatile', 'Two-handed damage (Versatile)', 'text', '1d10'], ['weapon.range', 'Range (ranged or thrown)', 'text', '80/320'], ['weapon.props', 'Properties', 'text', 'Finesse, Light, Thrown'], ['weapon.monk', 'Monk weapon', 'bool'],
@@ -255,6 +256,13 @@ function editorHtml(d) {
         + '<p class="hint wide">Level: total picks from that level on. "2: 2, 5: 3" means 2 at level 2 and 3 from level 5. A subclass\'s count adds to its class\'s.</p>';
       case 'classMulti': return `<fieldset class="hf wide checks"><legend class="lbl">${label}</legend>${L.all('class').map(x => `<label class="chk"><input type="checkbox" data-fset="${path}" value="${x.id}" ${(v || []).includes(x.id) ? 'checked' : ''}><span>${esc(x.name)}</span></label>`).join('')}</fieldset>`;
       case 'subMulti': return `<fieldset class="hf wide checks"><legend class="lbl">${label}</legend>${L.all('subclass').map(x => `<label class="chk"><input type="checkbox" data-fset="${path}" value="${x.id}" ${(v || []).includes(x.id) ? 'checked' : ''}><span>${esc(x.name)} <small>${esc(L.get(x.parent)?.name || '')}</small></span></label>`).join('')}<span class="hint">Whether these are always prepared, always known, or just added to the list to choose from is set on each subclass (under "How its subclass spells work").</span></fieldset>`;
+      // a container: players can put things in it on their sheet. Backpack, Pouch, Sack, Basket and Chest are by default.
+      case 'ctOn': return `<label class="hf chk boolf"><input type="checkbox" data-fbool="${path}" data-rerender ${R.libContainer(d) ? 'checked' : ''}><span>This is a container: players can put things in it</span></label>`;
+      case 'ctCap': {
+        if (!R.libContainer(d)) return '';
+        const std = R.stdCap(d.name);
+        return `<label class="hf">${lab}<input class="f n" data-f="${path}" data-num inputmode="decimal" value="${esc(v ?? '')}" placeholder="${std || 'No limit'}"><span class="hint" style="display:block">${std ? `Blank uses the SRD's ${std} lb.` : 'Blank for no limit.'}</span></label>`;
+      }
       case 'itemCat': return `<label class="hf">${lab}<select class="f" data-f="${path}" data-rerender>${opt([['gear', 'Adventuring gear'], ['armor', 'Armor or shield'], ['weapon', 'Weapon'], ['tool', 'Tool'], ['mount', 'Mount or vehicle']], v || 'gear')}</select></label>`;
       case 'invCatSel': return `<label class="hf">${lab}<select class="f" data-f="${path}"><option value="" ${!v ? 'selected' : ''}>By its kind (${esc(({ armor: 'Armor & Clothing', weapon: 'Weapons' })[d.cat] || 'Gear')})</option>${opt([['armor', 'Armor & Clothing'], ['weapons', 'Weapons'], ['treasure', 'Treasure & Trinkets'], ['gear', 'Gear'], ['consumables', 'Consumables (used up: a Use button)']], ['tools', 'components', 'general'].includes(v) ? 'gear' : v || '')}</select></label>`;
       case 'subSpellSel': return `<label class="hf wide">${lab}<select class="f" data-f="${path}"><option value="" ${!v ? 'selected' : ''}>The usual for its class${d.parent ? ` (${M.subSpellMode({ parent: d.parent }) === 'added' ? 'added to the spell list' : M.subSpellMode({ parent: d.parent }) === 'known' ? 'always known' : 'always prepared'})` : ''}</option>${opt([['prepared', 'Always prepared (domain, oath, circle spells)'], ['known', "Always known, and don't count against spells known"], ['added', 'Added to the class spell list to choose from (expanded spells)']], v || '').replace(/<option value=""[^>]*>[^<]*<\/option>/, '')}</select></label>`;
@@ -432,6 +440,7 @@ function onInput(e) {
   }
   if (el.dataset.ctcell != null) { setPath(d, el.dataset.f, el.value); if (e.type === 'change') refreshCarry(el); return; }
   // an item's kind decides which fields show (armor or weapon numbers)
+  if (el.dataset.rerender != null && el.dataset.fbool) { setPath(d, el.dataset.fbool, el.checked); return keepScroll(render); }
   if (el.dataset.rerender != null && el.dataset.f) { if (e.type !== 'change') return; setPath(d, el.dataset.f, el.value); return keepScroll(render); }
   if (el.dataset.f && el.dataset.numlist != null) setPath(d, el.dataset.f, el.value.split(/[^0-9]+/).filter(Boolean).map(Number));
   else if (el.dataset.f) setPath(d, el.dataset.f, el.dataset.num != null ? (el.value === '' ? '' : Number(el.value)) : el.value);

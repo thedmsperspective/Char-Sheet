@@ -174,8 +174,33 @@ export function bagCounts(c, key) {
   if (k.startsWith('mi:')) { const m = (c.magicItems || []).find(x => x.cid === k.split(':')[1]); return !!(m?.container?.counts); }
   return false;
 }
+/* ---------- ordinary containers: how much each holds (the SRD's Container Capacity table, by weight) ----------
+   A Library item can say it's a container (container.on) and how much it holds (container.cap, blank = no limit).
+   Without that, these names count as containers. */
+export const STD_CONTAINERS = [['backpack', 30, 5], ['pouch', 6, 1], ['sack', 30, 0.5], ['basket', 40, 2], ['chest', 300, 25]];
+const stdOf = name => {
+  const n = String(name || '').toLowerCase().replace(/\([^)]*\)/g, ' ');
+  if (/component/.test(n)) return null; // a component pouch holds spell components, not gear
+  return STD_CONTAINERS.find(([k]) => new RegExp(`\\b${k}\\b`).test(n)) || null;
+};
+/** For a Library item: { cap, wt } if it's a container, otherwise null. cap 0 means no limit. */
+export function libContainer(it) {
+  if (!it) return null;
+  if (it.container && it.container.on === false) return null;
+  const std = stdOf(it.name);
+  if (!it.container?.on && !std) return null;
+  const cap = it.container?.cap === '' || it.container?.cap == null ? (std ? std[1] : 0) : Number(it.container.cap) || 0;
+  return { cap, wt: Number(it.wt ?? (std ? std[2] : 0)) || 0 };
+}
+/** A container a player keeps on their sheet: its limit (typed, or by its name) and its own weight */
+export const ownCap = x => (x.cap === '' || x.cap == null ? stdOf(x.name)?.[1] || 0 : Number(x.cap) || 0);
+export const ownWt = x => (x.wt === '' || x.wt == null ? stdOf(x.name)?.[2] || 0 : Number(x.wt) || 0);
+export const stdCap = name => stdOf(name)?.[1] || 0;
+export const stdWt = name => stdOf(name)?.[2] || 0;
+
 export function carried(c) {
   let w = coinWeight(c);
+  for (const x of c.containers || []) w += ownWt(x); // the backpack itself
   for (const [k] of INV_CATS) for (const r of c.inv?.[k] || []) w += rowWeight(r);
   for (const [k, rows] of Object.entries(c.bags || {})) if (bagCounts(c, k)) for (const r of rows || []) w += rowWeight(r);
   // items the DM's magic item app gave this character (one put inside a Bag of Holding or the like weighs nothing here)

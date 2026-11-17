@@ -746,6 +746,11 @@ function applyLoot(c) {
       const list = (c.consumables ||= []), have = list.find(r => String(r.name).toLowerCase() === String(l.name).toLowerCase() && !r.magic);
       if (have) have.n = (Number(have.n) || 1) + l.qty; else list.push({ id: uid(), name: l.name, n: l.qty, desc: l.desc || '' });
       stamp(c, 'consumables'); news.push(l.name);
+    } else if (!['weapons', 'armor'].includes(l.sec) && R.libContainer(l.eqId ? L.get(l.eqId) || l : l)) {
+      // a backpack, chest or the like: one container per item, ready to put things in
+      const ct = R.libContainer(l.eqId ? L.get(l.eqId) || l : l);
+      for (let k = 0; k < Math.max(1, Number(l.qty) || 1); k++) c.containers = [...(c.containers || []), { id: uid(), name: l.name, cap: ct.cap, wt: Number(l.wt ?? ct.wt) || 0, lootId: l.id, ...(l.eqId ? { eqId: l.eqId } : {}) }];
+      stamp(c, 'containers'); news.push(l.name);
     } else {
       const sec = R.invKey(l.sec || 'treasure'), it = l.eqId ? L.get(l.eqId) : null;
       const row = { id: uid(), name: l.name, wt: l.wt, qty: l.qty, magic: false, desc: l.desc || (it?.weapon?.props || ''), lootId: l.id, ...(it ? { eqId: it.id } : {}) };
@@ -1126,6 +1131,15 @@ function pickEquipment(cat) {
       stamp(c, 'consumables'); save(c); st.added.push(it.name);
       const box = dlg.querySelector('.eqlist'), top = box?.scrollTop || 0; paint(); const nb = dlg.querySelector('.eqlist'); if (nb) nb.scrollTop = top;
       toast(`${it.name} added to your Consumables.`);
+      return;
+    }
+    // a container (backpack, pouch, chest…): it goes in Containers, ready to put things in
+    const ct = (it.cat || 'gear') === 'gear' ? R.libContainer(it) : null;
+    if (ct) {
+      c.containers = [...(c.containers || []), { id: uid(), name: it.name, cap: ct.cap, wt: ct.wt, eqId: it.id }];
+      stamp(c, 'containers'); save(c); st.added.push(it.name);
+      const box = dlg.querySelector('.eqlist'), top = box?.scrollTop || 0; paint(); const nb = dlg.querySelector('.eqlist'); if (nb) nb.scrollTop = top;
+      toast(`${it.name} added to your Containers.${ct.cap ? ` It holds ${ct.cap} lb.` : ''}`);
       return;
     }
     const where = R.invKey(it.invCat || (cat === 'treasure' && (it.cat || 'gear') === 'gear' ? cat : EQ_CAT[it.cat] || 'gear'));
