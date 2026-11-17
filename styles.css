@@ -1008,6 +1008,11 @@ html[data-red="1"] .syncbtn .dot{background:#fff}
 .baghead{display:flex;align-items:center;gap:8px}
 .baghead b,.baghead .f{flex:1;min-width:0}
 .bagload{font-weight:700;color:var(--accent);white-space:nowrap}
+.bagfold{all:unset;cursor:pointer;width:28px;height:28px;display:inline-grid;place-items:center;border-radius:6px;font-size:16px;flex:none;color:var(--accent)}
+.bagfold:hover,.bagfold:focus-visible{background:var(--line)}
+.bag.shut{padding-bottom:8px}
+.bag.shut .warn{margin:4px 0 0}
+.bagcount{opacity:.7;white-space:nowrap;font-size:.9em}
 .bag .hint{margin:2px 0 6px}
 .bagnest{margin:2px 0 0 18px;padding:0}
 .bagwhere{display:flex;flex-wrap:wrap;gap:6px 14px;margin:8px 0}

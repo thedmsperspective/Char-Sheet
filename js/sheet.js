@@ -1099,6 +1099,10 @@ function moveSel(c, src, i) {
   if (src.startsWith('bag:')) opts.unshift(`<option value="inv:${esc(R.invKey(row?.from))}">Take out (to ${esc(catName(R.invKey(row?.from)))})</option>`);
   return opts.length ? `<select class="f movesel" data-move="${esc(src)}|${i}" aria-label="Move"><option value="">Move…</option>${opts.join('')}</select>` : '';
 }
+// Which containers are folded shut, remembered on this device only
+const FOLD_KEY = 'cs-bag-folded';
+const folded = (() => { try { return new Set(JSON.parse(localStorage.getItem(FOLD_KEY) || '[]')); } catch { return new Set(); } })();
+const foldId = (c, b) => `${c.id}|${b.key}`;
 function containersHtml(c) {
   const bags = bagsOf(c);
   const mags = (c.magicItems || []).filter(m => m.container);
@@ -1110,15 +1114,16 @@ function containersHtml(c) {
         <td class="num">${Math.round(R.rowWeight(r) * 100) / 100}</td>
         <td><button class="x" type="button" data-act="rowdel" data-list="bags.${b.key}" data-i="${i}" aria-label="Remove">×</button></td></tr>`).join('');
     const nested = (c.magicItems || []).filter(m => c.inside?.[m.cid] === b.key).map(m => `<li>${esc(m.name)}</li>`).join('');
-    const load = bagLoad(c, b);
-    return `<div class="bag${load.over ? ' over' : ''}">
-      <div class="baghead">${b.own ? `<input class="f" data-k="containers.${(c.containers || []).indexOf(b.own)}.name" value="${esc(b.own.name)}" aria-label="Container name" autocomplete="off">` : `<b>${esc(b.name)}</b>`}
-        <span class="bagload">${esc(load.text)}</span>
+    const load = bagLoad(c, b), shut = folded.has(foldId(c, b));
+    const n = (c.bags?.[b.key] || []).length + (c.magicItems || []).filter(m => c.inside?.[m.cid] === b.key).length;
+    return `<div class="bag${load.over ? ' over' : ''}${shut ? ' shut' : ''}">
+      <div class="baghead"><button class="bagfold" type="button" data-act="bagfold" data-key="${esc(b.key)}" aria-expanded="${!shut}" aria-label="${shut ? 'Open' : 'Fold'} ${esc(b.name)}" title="${shut ? 'Show what\'s inside' : 'Fold it up'}">${shut ? '▸' : '▾'}</button>${b.own ? `<input class="f" data-k="containers.${(c.containers || []).indexOf(b.own)}.name" value="${esc(b.own.name)}" aria-label="Container name" autocomplete="off">` : `<b>${esc(b.name)}</b>`}
+        ${shut ? `<span class="bagcount">${n ? `${n} item${n === 1 ? '' : 's'}` : 'empty'}</span>` : ''}<span class="bagload">${esc(load.text)}</span>
         ${b.own ? `<button class="x" type="button" data-act="bagdel" data-id="${esc(b.own.id)}" aria-label="Remove this container">×</button>` : ''}</div>
-      ${load.over ? `<p class="warn">${b.count ? 'More than it holds.' : `Over ${b.cap} lb${b.m && /bag of holding/i.test(b.m.name) ? ': the bag would burst' : ': more than it can hold'}.`}</p>` : ''}
+      ${shut ? (load.over ? '<p class="warn">Too full.</p>' : '') : `${load.over ? `<p class="warn">${b.count ? 'More than it holds.' : `Over ${b.cap} lb${b.m && /bag of holding/i.test(b.m.name) ? ': the bag would burst' : ': more than it can hold'}.`}</p>` : ''}
       <p class="hint">${b.counts ? "What's inside counts toward your weight." : `What's inside doesn't count toward your weight${b.m?.weight ? ` (the ${esc(b.m.name)} itself does: ${b.m.weight} lb)` : ''}.`}</p>
       ${rows ? `<div class="tablewrap"><table class="inv"><thead><tr><th>Item</th><th>Weight each</th><th>Qty</th><th>Weight</th><th></th></tr></thead><tbody data-list="bags.${b.key}">${rows}</tbody></table></div>` : '<p class="empty">Empty. Use Move… on any item to put it in here.</p>'}
-      ${nested ? `<p class="sub">Also inside:</p><ul class="bagnest">${nested}</ul>` : ''}
+      ${nested ? `<p class="sub">Also inside:</p><ul class="bagnest">${nested}</ul>` : ''}`}
     </div>`;
   };
   // a magic container can itself go inside another container
@@ -1393,6 +1398,12 @@ function act(b, c, root) {
       const k = c.classes[d.i]; if (!k) return;
       k.hdUsed = Math.max(0, Math.min(Number(k.level) || 0, (Number(k.hdUsed) || 0) + Number(d.d)));
       return touch('classes');
+    }
+    case 'bagfold': {
+      const id = `${c.id}|${d.key}`;
+      if (folded.has(id)) folded.delete(id); else folded.add(id);
+      try { localStorage.setItem(FOLD_KEY, JSON.stringify([...folded].slice(-200))); } catch { /* fine: it just won't be remembered */ }
+      return ctx.rerender();
     }
     case 'bagadd': {
       c.containers = [...(c.containers || []), { id: uid(), name: 'Backpack' }];
