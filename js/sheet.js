@@ -79,13 +79,14 @@ function header(c) {
       ${c.classes.length > 1 ? `<button class="x" type="button" data-act="rowdel" data-list="classes" data-i="${i}" aria-label="Remove this class">×</button>` : ''}`}
     </div>`).join('');
   return `
+  ${levelAllowed(c) ? '<div class="lvlbanner" role="status">⭐ <b>Your DM says you can level up!</b> Tap <b>Level up</b> below your name.</div>' : ''}
   <header class="sheethead panel">
     <div class="nameblock">
       <input class="charname" data-k="name" value="${esc(c.name)}" placeholder="Character name" autocomplete="off" spellcheck="false">
       <div class="lvlline">Level ${calc('level')} · Proficiency ${calc('prof')}</div>
       <div class="restbar">
-        <button class="btn small primary" type="button" data-act="levelup">Level up</button>
-        ${readyToLevel(c) ? '<span class="readybadge">Ready to level up</span>' : ''}
+        ${levelLocked(c) ? '<button class="btn small" type="button" data-act="levelup" disabled title="Your DM allows each level up">Level up</button><span class="hint">Waiting for your DM</span>'
+          : `<button class="btn small primary${levelAllowed(c) ? ' glow' : ''}" type="button" data-act="levelup">Level up</button>${readyToLevel(c) && !levelAllowed(c) ? '<span class="readybadge">Ready to level up</span>' : ''}`}
         <button class="btn small" type="button" data-act="shortrest">Short rest</button>
         <button class="btn small" type="button" data-act="longrest">Long rest</button>
       </div>
@@ -438,6 +439,12 @@ function simpleList(c, path, title, cols, bare = false) {
 /* ---------- Charges on magic items from the DM (a Wand of Web's 7 charges; once a day for a Javelin of Lightning) ----------
    Kept per item (c.charges[cid] = { used }), so they go with the item if the DM gives it to someone else. */
 export const chargeLeft = (c, m) => Math.max(0, (Number(m.charges?.max) || 0) - (Number(c.charges?.[m.cid]?.used) || 0));
+/* ---------- Leveling up when the DM allows it (Table Rules) ----------
+   Session Notes sends when the DM last allowed it (c.sn.levelOk). One level each time: leveling up (c.leveledAt) uses it. */
+const lockOn = () => L.tableSettings().levelLock === 'on';
+export const levelAllowed = c => lockOn() && (Number(c.sn?.levelOk) || 0) > (Number(c.leveledAt) || 0);
+export const levelLocked = c => lockOn() && isPlayer() && !levelAllowed(c);
+
 function itemCharges(c) {
   const list = (c.magicItems || []).filter(m => m.charges?.max > 0);
   return list.map(m => {
@@ -1018,7 +1025,7 @@ function pageInventory(c) {
   const cats = R.INV_CATS.map(([k, n]) => {
     const rows = (c.inv[k] || []).map((r, i) => `
       <tr>
-        <td><input class="f" data-k="inv.${k}.${i}.name" value="${esc(r.name)}" aria-label="Item name" autocomplete="off">${eqActs(c, k, i, r)}${k === 'armor' || k === 'weapons' ? notchBox(c, `inv.${k}.${i}`, N.rowState(k, r)) : ''}${moveSel(c, `inv:${k}`, i)}</td>
+        <td><input class="f" data-k="inv.${k}.${i}.name" value="${esc(r.name)}" aria-label="Item name" autocomplete="off">${eqActs(c, k, i, r)}${k === 'armor' || k === 'weapons' ? notchBox(c, `inv.${k}.${i}`, N.rowState(k, r)) : ''}${apprTag(c, r)}${moveSel(c, `inv:${k}`, i)}</td>
         <td><input class="f n" data-k="inv.${k}.${i}.wt" data-type="num" inputmode="decimal" value="${esc(r.wt)}" aria-label="Weight each"></td>
         <td><input class="f n" data-k="inv.${k}.${i}.qty" data-type="num" inputmode="numeric" value="${esc(r.qty)}" aria-label="Quantity"></td>
         <td class="num">${calc('rowwt', `${k}.${i}`)}</td>
@@ -1077,13 +1084,19 @@ function bagLoad(c, b) {
   const w = Math.round(bagWeight(c, b) * 100) / 100;
   return { text: b.cap ? `${w} / ${b.cap} lb` : `${w} lb`, over: !!b.cap && w > b.cap };
 }
-const catName = k => (R.INV_CATS.find(x => x[0] === k) || [k, 'General Items'])[1];
+const catName = k => (R.INV_CATS.find(x => x[0] === R.invKey(k)) || [k, 'Gear'])[1];
 // "Move to…" for a row: into any container (and out, back to its section)
+// Loot from the DM: what it was appraised at, if the DM told them (never its true value)
+function apprTag(c, r) {
+  if (!r.lootId) return '';
+  const l = (c.sn?.loot || []).find(x => x.id === r.lootId);
+  return l?.shown ? `<span class="appr">Appraised: ${esc(l.shown)}</span>` : '';
+}
 function moveSel(c, src, i) {
   const bags = bagsOf(c); if (!bags.length) return '';
   const row = src.startsWith('inv:') ? c.inv?.[src.slice(4)]?.[i] : c.bags?.[src.slice(4)]?.[i];
   const opts = bags.filter(b => `bag:${b.key}` !== src).map(b => `<option value="bag:${esc(b.key)}">Into ${esc(b.name)}</option>`);
-  if (src.startsWith('bag:')) opts.unshift(`<option value="inv:${esc(row?.from || 'general')}">Take out (to ${esc(catName(row?.from || 'general'))})</option>`);
+  if (src.startsWith('bag:')) opts.unshift(`<option value="inv:${esc(R.invKey(row?.from))}">Take out (to ${esc(catName(R.invKey(row?.from)))})</option>`);
   return opts.length ? `<select class="f movesel" data-move="${esc(src)}|${i}" aria-label="Move"><option value="">Move…</option>${opts.join('')}</select>` : '';
 }
 function containersHtml(c) {
@@ -1122,7 +1135,7 @@ function moveRow(c, src, i, dest) {
   const from = sk === 'inv' ? c.inv?.[sKey] : c.bags?.[sKey]; if (!from?.[i]) return;
   const row = from.splice(i, 1)[0];
   if (dk === 'bag') { if (sk === 'inv') row.from = sKey; ((c.bags ||= {})[dKey] ||= []).push(row); }
-  else { const cat = R.INV_CATS.some(x => x[0] === dKey) ? dKey : 'general'; delete row.from; (c.inv[cat] ||= []).push(row); }
+  else { const cat = R.invKey(dKey); delete row.from; (c.inv[cat] ||= []).push(row); }
   if (sk === 'inv' || dk === 'inv') stamp(c, `inv.${sk === 'inv' ? sKey : dKey}`);
   stamp(c, 'bags'); ctx.save(c); ctx.rerender();
   const b = bagsOf(c).find(x => x.key === dKey);
@@ -1389,7 +1402,7 @@ function act(b, c, root) {
       const x = (c.containers || []).find(y => y.id === d.id); if (!x) return;
       const key = `own:${x.id}`, rows = c.bags?.[key] || [];
       if (rows.length && !confirm(`Remove ${x.name || 'this container'}? What's in it goes back to your inventory.`)) return;
-      for (const r of rows) { const cat = R.INV_CATS.some(k => k[0] === r.from) ? r.from : 'general'; delete r.from; (c.inv[cat] ||= []).push(r); stamp(c, `inv.${cat}`); }
+      for (const r of rows) { const cat = R.invKey(r.from); delete r.from; (c.inv[cat] ||= []).push(r); stamp(c, `inv.${cat}`); }
       if (c.bags) delete c.bags[key];
       for (const [cid, k] of Object.entries(c.inside || {})) if (k === key) delete c.inside[cid];
       c.containers = c.containers.filter(y => y !== x);
@@ -1583,7 +1596,7 @@ function act(b, c, root) {
     case 'miattack': case 'miwear': { const m = (c.magicItems || []).find(x => x.cid === d.cid); if (m) ctx.useMagicGear(d.act, m); return; }
     case 'eqwear': case 'eqshield': case 'eqattack': { const r = c.inv[d.cat]?.[Number(d.i)]; if (r) ctx.useEquipment(d.act, r); return; }
     case 'libview': return ctx.viewEntry(d.id);
-    case 'levelup': return ctx.levelUp();
+    case 'levelup': if (levelLocked(c)) { ctx.toast('Your DM allows each level up. Ask them at the table.'); return; } return ctx.levelUp();
     case 'optpick': return ctx.pickOption(d.group);
     case 'featpick': return ctx.pickFeature(d.key, d.name || '');
     case 'inknew': { const p = { id: uid(), strokes: [], updated: Date.now() }; c.inkPages = [...(c.inkPages || []), p]; stamp(c, 'inkPages'); ctx.save(c); return openInk(c, p.id); }

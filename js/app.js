@@ -374,6 +374,7 @@ function levelUp() {
       }
       resolvePicks(c);
       const added = syncAuto(c);
+      c.leveledAt = Date.now(); stamp(c, 'leveledAt'); // the DM's OK for this level is used (Table Rules: When I allow it)
       save(c);
       $('#actDlg').close();
       const optAfter = O.counts(c);
@@ -731,8 +732,37 @@ function rulesTab() {
   b.classList.toggle('dot', n > 0);
   b.setAttribute('aria-label', n ? `Table Rules, ${n} updated` : 'Table Rules');
 }
+// Loot your DM gave this character (Session Notes' Loot tab): each find added once. Equipment lands in its own section
+// (a weapon gets its attack), anything else in Treasure; coins go in the purse. Its true value never comes here.
+function applyLoot(c) {
+  const got = c.lootGot || {}, news = [];
+  for (const l of c.sn?.loot || []) {
+    if (!l?.id || got[l.id]) continue;
+    if (l.coins) {
+      c.coins = { ...(c.coins || {}) };
+      for (const [k, v] of Object.entries(l.coins)) c.coins[k] = (Number(c.coins[k]) || 0) + (Number(v) || 0);
+      stamp(c, 'coins'); news.push(Object.entries(l.coins).map(([k, v]) => `${v} ${k}`).join(', '));
+    } else if (l.sec === 'consumables') {
+      const list = (c.consumables ||= []), have = list.find(r => String(r.name).toLowerCase() === String(l.name).toLowerCase() && !r.magic);
+      if (have) have.n = (Number(have.n) || 1) + l.qty; else list.push({ id: uid(), name: l.name, n: l.qty, desc: l.desc || '' });
+      stamp(c, 'consumables'); news.push(l.name);
+    } else {
+      const sec = R.invKey(l.sec || 'treasure'), it = l.eqId ? L.get(l.eqId) : null;
+      const row = { id: uid(), name: l.name, wt: l.wt, qty: l.qty, magic: false, desc: l.desc || (it?.weapon?.props || ''), lootId: l.id, ...(it ? { eqId: it.id } : {}) };
+      c.inv[sec] = [...(c.inv[sec] || []), row]; stamp(c, `inv.${sec}`);
+      if (it?.cat === 'weapon') addWeaponAttack(c, it, row);
+      news.push(l.name);
+    }
+    got[l.id] = Date.now();
+  }
+  if (!news.length) return false;
+  c.lootGot = got; stamp(c, 'lootGot'); save(c);
+  toast(`New loot from your DM: ${news.join(' · ')}.`);
+  return true;
+}
 function renderSheet() {
   const c = state.cur; if (!c) return;
+  applyLoot(c);
   if (state.page === 'rules' && !(c.tableRules || []).length) state.page = 'sheet';
   rulesTab();
   titleChanged();
@@ -1073,7 +1103,7 @@ function openScores({ methods = false } = {}) {
 }
 
 /* ---------- the equipment list: add gear to the inventory; armor sets AC when worn, weapons become attacks ---------- */
-const EQ_CAT = { armor: 'armor', weapon: 'weapons', tool: 'tools', gear: 'general', mount: 'general' };
+const EQ_CAT = { armor: 'armor', weapon: 'weapons', tool: 'gear', gear: 'gear', mount: 'gear' };
 const EQ_KINDS = [['', 'Everything'], ['weapon', 'Weapons'], ['armor', 'Armor'], ['gear', 'Gear'], ['tool', 'Tools'], ['mount', 'Mounts and vehicles']];
 function pickEquipment(cat) {
   const c = state.cur;
@@ -1098,7 +1128,7 @@ function pickEquipment(cat) {
       toast(`${it.name} added to your Consumables.`);
       return;
     }
-    const where = it.invCat || (['treasure', 'components'].includes(cat) && (it.cat || 'gear') === 'gear' ? cat : EQ_CAT[it.cat] || 'general');
+    const where = R.invKey(it.invCat || (cat === 'treasure' && (it.cat || 'gear') === 'gear' ? cat : EQ_CAT[it.cat] || 'gear'));
     const row = { id: uid(), name: it.name, wt: Number(it.wt) || 0, qty: 1, magic: false, desc: [it.cost ? `${it.cost}` : '', it.weapon?.props || ''].filter(Boolean).join(' · '), eqId: it.id };
     c.inv[where] = [...(c.inv[where] || []), row]; stamp(c, `inv.${where}`);
     if (it.cat === 'weapon') addWeaponAttack(c, it, row);

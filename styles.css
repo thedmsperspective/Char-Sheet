@@ -1019,3 +1019,16 @@ html[data-red="1"] .syncbtn .dot{background:#fff}
 .lim.chg.locked .uses{opacity:.45}
 .lim.chg .chglast{flex-basis:100%;margin:4px 0 0;font-size:.9rem}
 .recharge{margin:10px 0}
+
+/* Level up, when the DM allows it */
+.lvlbanner{margin:0 0 10px;padding:10px 14px;border-radius:12px;background:color-mix(in srgb,var(--accent) 18%,var(--panel-solid));border:1px solid var(--accent);font-size:1rem}
+.btn.glow{box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 45%,transparent),0 0 16px color-mix(in srgb,var(--accent) 60%,transparent);animation:lvlglow 1.6s ease-in-out infinite}
+@keyframes lvlglow{50%{box-shadow:0 0 0 5px color-mix(in srgb,var(--accent) 25%,transparent),0 0 24px color-mix(in srgb,var(--accent) 70%,transparent)}}
+@media (prefers-reduced-motion:reduce){.btn.glow{animation:none}}
+
+/* Level up, when the DM allows it */
+.lvlbanner{margin:0 0 10px;padding:10px 14px;border-radius:12px;background:color-mix(in srgb,var(--accent) 18%,var(--panel-solid));border:1px solid var(--accent);font-size:1rem}
+.btn.glow{box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 45%,transparent),0 0 16px color-mix(in srgb,var(--accent) 60%,transparent);animation:lvlglow 1.6s ease-in-out infinite}
+@keyframes lvlglow{50%{box-shadow:0 0 0 5px color-mix(in srgb,var(--accent) 25%,transparent),0 0 24px color-mix(in srgb,var(--accent) 70%,transparent)}}
+@media (prefers-reduced-motion:reduce){.btn.glow{animation:none}}
+.appr{display:inline-block;margin:4px 6px 0 0;font-size:.8rem;padding:1px 8px;border-radius:999px;border:1px solid var(--accent);color:var(--accent)}

@@ -30,7 +30,7 @@ export function newCharacter(name = '') {
     desc: { gender: '', age: '', height: '', weight: '', eyes: '', skin: '', hair: '', appearance: '', portrait: '' },
     faction: { name: '', notes: '', symbol: '' },
     personality: '', ideals: '', bonds: '', flaws: '', enemies: '',
-    inv: { armor: [], weapons: [], tools: [], treasure: [], components: [], general: [] },
+    inv: { armor: [], weapons: [], treasure: [], gear: [] },
     coins: { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 }, powerful: false,
     defenses: [], options: [], journal: '', inkPages: [], creatures: [], compHp: {}, wildFav: [], infused: [], infAttuned: {},
     notes: '', goalsPlayer: '', goalsChar: '', // notes is shown as Backstory
@@ -74,6 +74,14 @@ export function upgrade(c) {
       else if (src[k] && typeof src[k] === 'object' && !Array.isArray(src[k]) && dst[k] && typeof dst[k] === 'object') fill(dst[k], src[k]);
     }
   })(c, base);
+  // Tools & Kits, Spell Components and General Items became one Gear section
+  const old = ['tools', 'components', 'general'].filter(k => (c.inv?.[k] || []).length);
+  if (old.length) {
+    c.inv.gear = [...(c.inv.gear || []), ...old.flatMap(k => c.inv[k])];
+    for (const k of old) { c.inv[k] = []; stamp(c, `inv.${k}`); }
+    stamp(c, 'inv.gear');
+  }
+  for (const rows of Object.values(c.bags || {})) for (const r of rows || []) if (['tools', 'components', 'general'].includes(r.from)) r.from = 'gear';
   return c;
 }
 

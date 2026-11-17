@@ -21,9 +21,10 @@ export const SKILLS = [
 
 // Inventory Tracker categories, in the order of the paper tracker
 export const INV_CATS = [
-  ['armor', 'Armor & Clothing'], ['weapons', 'Weapons'], ['tools', 'Tools & Kits'],
-  ['treasure', 'Treasure & Trinkets'], ['components', 'Spell Components'], ['general', 'General Items'],
+  ['armor', 'Armor & Clothing'], ['weapons', 'Weapons'], ['treasure', 'Treasure & Trinkets'], ['gear', 'Gear'],
 ];
+// Tools & Kits, Spell Components and General Items are all Gear now
+export const invKey = k => (['tools', 'components', 'general'].includes(k) ? 'gear' : INV_CATS.some(x => x[0] === k) ? k : 'gear');
 export const COINS = [['cp', 'Copper'], ['sp', 'Silver'], ['ep', 'Electrum'], ['gp', 'Gold'], ['pp', 'Platinum']];
 const COIN_CP = { cp: 1, sp: 10, ep: 50, gp: 100, pp: 1000 };
 
