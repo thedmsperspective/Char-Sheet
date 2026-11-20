@@ -104,21 +104,27 @@ async function showHome() {
   // DM: the suite's campaigns. The filter here only changes what this screen shows, never the other apps.
   const camps = dm ? sync.campaignList() : [];
   const bar = $('#campBar');
-  bar.hidden = !camps.length;
   let view = state.settings.campView;
-  if (view == null || (view !== 'all' && view !== 'none' && !camps.some(k => k.id === view))) view = sync.currentCampaignId() || 'all';
+  if (view == null || (view !== 'all' && view !== 'none' && view !== 'every' && !camps.some(k => k.id === view))) view = sync.currentCampaignId() || 'all';
+  // other tables' campaigns (a DM can run several tables): their characters only show under "Every table"
+  const every = sync.allCampaigns(), elsewhere = id => !!id && every.some(k => k.id === id) && !camps.some(k => k.id === id);
+  const otherTables = !!sync.tableId() && state.chars.some(c => elsewhere(c.campaignId));
+  bar.hidden = !camps.length && !otherTables;
   const untagged = state.chars.some(c => !c.campaignId);
-  if (camps.length) {
+  if (camps.length || otherTables) {
     const cur = sync.currentCampaignId();
     bar.innerHTML = `<label>Show <select class="f" id="campView">
-      <option value="all"${view === 'all' ? ' selected' : ''}>All characters</option>
+      <option value="all"${view === 'all' ? ' selected' : ''}>${otherTables ? 'All at this table' : 'All characters'}</option>
       ${camps.map(k => `<option value="${esc(k.id)}"${view === k.id ? ' selected' : ''}>${esc(k.name || 'Unnamed campaign')}${k.id === cur ? ' (current)' : ''}</option>`).join('')}
       ${untagged || view === 'none' ? `<option value="none"${view === 'none' ? ' selected' : ''}>No campaign</option>` : ''}
+      ${otherTables || view === 'every' ? `<option value="every"${view === 'every' ? ' selected' : ''}>Every table</option>` : ''}
     </select></label>`;
   }
-  const shown = !camps.length || view === 'all' ? state.chars : state.chars.filter(c => (view === 'none' ? !c.campaignId : c.campaignId === view));
+  const shown = (!camps.length && !otherTables) || view === 'every' ? state.chars
+    : view === 'all' ? state.chars.filter(c => !elsewhere(c.campaignId))
+    : state.chars.filter(c => (view === 'none' ? !c.campaignId : c.campaignId === view));
   const campSel = c => `<select class="f campsel" data-camp="${c.id}" aria-label="Campaign for ${esc(c.name || 'this character')}">
-    ${c.campaignId && !camps.some(k => k.id === c.campaignId) ? `<option value="${esc(c.campaignId)}" selected>Unknown campaign</option>` : ''}
+    ${c.campaignId && !camps.some(k => k.id === c.campaignId) ? `<option value="${esc(c.campaignId)}" selected>${elsewhere(c.campaignId) ? `${esc(every.find(k => k.id === c.campaignId).name || 'Unnamed campaign')} (another table)` : 'Unknown campaign'}</option>` : ''}
     <option value=""${c.campaignId ? '' : ' selected'}>No campaign</option>
     ${camps.map(k => `<option value="${esc(k.id)}"${c.campaignId === k.id ? ' selected' : ''}>${esc(k.name || 'Unnamed campaign')}</option>`).join('')}</select>`;
   const list = $('#charList');

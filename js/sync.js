@@ -7,7 +7,7 @@
 import { db } from './db.js';
 import { merge, hashOf, upgrade } from './model.js';
 import { CLIENT_ID, APP_ID, PICKER_API_KEY } from './config.js';
-import { exportCustom, mergeCustom, replaceCustom, tableSettings, setTableSetting } from './library.js';
+import { exportCustom, mergeCustom, replaceCustom, tableSettings, setTableSetting, adoptTableSettings, rulesTable } from './library.js';
 import { runBridge, writeParty, loadBestiary } from './bridge.js';
 
 const SCOPE = 'https://www.googleapis.com/auth/drive.file';
@@ -237,6 +237,9 @@ const TABLE_KEYS = ['spellMode', 'initiative', 'leveling', 'edition', 'abilMetho
 async function syncTableSettings() {
   if (!core?.tableSettings || !core.saveSuite) return;
   const ts = core.tableSettings(), lib = tableSettings(), libAt = Number(lib.updated) || 0;
+  // moved to another table: take that table's rules as they are (never hand this table's to it)
+  const tid = core.currentTable?.()?.id || '';
+  if (tid && rulesTable() !== tid) { await adoptTableSettings(Object.fromEntries(TABLE_KEYS.map(k => [k, ts[k]])), tid); return; }
   const push = {};
   for (const k of TABLE_KEYS) {
     if (ts[k] === lib[k]) continue;
@@ -247,7 +250,9 @@ async function syncTableSettings() {
   if (Object.keys(push).length) await core.saveSuite(tok.value, { settings: push, settingsAt: libAt });
 }
 // The suite's campaigns (DM's device), for tagging characters and the campaign filter
-export const campaignList = () => core?.campaigns?.() || [];
+export const campaignList = () => core?.campaigns?.() || []; // this table's (and any not tied to a table yet)
+export const allCampaigns = () => core?.campaigns?.({ all: true }) || [];
+export const tableId = () => core?.currentTable?.()?.id || '';
 // The table chosen in the launcher: this device's role there ('dm', 'player' or ''), and its approved players
 export const tableRole = () => core?.tableRole?.() || '';
 export const tableStatus = () => core?.currentTable?.()?.status || '';

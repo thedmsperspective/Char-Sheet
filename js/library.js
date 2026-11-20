@@ -118,7 +118,11 @@ export async function mergeCustom(remote) {
     else { delete custom.entries[id]; custom.deleted[id] = rd; }
     changed = true;
   }
-  if ((remote.settings?.updated || 0) > (custom.settings?.updated || 0)) { custom.settings = { ...DEFAULT_SETTINGS, ...remote.settings }; changed = true; }
+  if ((remote.settings?.updated || 0) > (custom.settings?.updated || 0)) {
+    // each table's rules: keep the tables only this device has written, take the newer copy's for the rest
+    const byTable = { ...(custom.settings?.byTable || {}), ...(remote.settings.byTable || {}) };
+    custom.settings = { ...DEFAULT_SETTINGS, ...remote.settings, byTable }; changed = true;
+  }
   if (changed) { custom.updated = Math.max(custom.updated, remote.updated || 0); await db.setMeta('library', custom); rebuild(); }
   return changed;
 }
@@ -130,11 +134,35 @@ export async function replaceCustom(remote) {
   rebuild();
   return true;
 }
-export const tableSettings = () => ({ ...DEFAULT_SETTINGS, ...(custom.settings || {}) });
+// Table Rules are kept per table (byTable), since one DM can run several tables: each device reads the rules of the
+// table it's at. Before a table has its own, it's the rules as they were (the plain settings).
+const tableNow = () => { try { return JSON.parse(localStorage.getItem('dmp-suite-table') || 'null')?.id || ''; } catch { return ''; } };
+export const tableSettings = () => {
+  const s = custom.settings || {}, tid = tableNow();
+  return { ...DEFAULT_SETTINGS, ...s, ...(tid ? s.byTable?.[tid] || {} : {}) };
+};
+const plain = st => { const { byTable, ...rest } = st; return rest; };
 export async function setTableSetting(key, val) {
-  custom.settings = { ...tableSettings(), [key]: val, updated: Date.now() };
+  const tid = tableNow(), cur = custom.settings || {};
+  const byTable = { ...(cur.byTable || {}) };
+  // a table's first rule of its own starts from the full set it was using, so it never borrows another table's later
+  const base = () => { const t = tableSettings(); return Object.fromEntries(Object.keys(DEFAULT_SETTINGS).filter(k => k !== 'updated').map(k => [k, t[k]])); };
+  if (tid) byTable[tid] = { ...(byTable[tid] || base()), [key]: val };
+  custom.settings = { ...DEFAULT_SETTINGS, ...plain(cur), ...(tid ? byTable[tid] : {}), [key]: val, byTable, updated: Date.now() };
   await persist();
 }
+/** DM: moved to another table, take its rules (from the suite) all at once */
+export async function adoptTableSettings(vals, tid) {
+  const cur = custom.settings || {};
+  const t = tableSettings(), base = Object.fromEntries(Object.keys(DEFAULT_SETTINGS).filter(k => k !== 'updated').map(k => [k, t[k]]));
+  const byTable = { ...(cur.byTable || {}), [tid]: { ...(cur.byTable?.[tid] || base), ...vals } };
+  custom.settings = { ...DEFAULT_SETTINGS, ...plain(cur), ...byTable[tid], byTable, updated: Date.now() };
+  await persist();
+  try { localStorage.setItem(RULES_TABLE, tid); } catch { /* it just checks again next time */ }
+}
+// which table this device last took the rules of (this device only: your other device may be at another table)
+const RULES_TABLE = 'cs-rules-table';
+export const rulesTable = () => { try { return localStorage.getItem(RULES_TABLE) || ''; } catch { return ''; } };
 export const customCount = () => Object.keys(custom.entries).length;
 
 // "30 ft, swim 30 ft, fly 50 ft (hover)" from a race and its parent race; the subrace's own speeds win.
