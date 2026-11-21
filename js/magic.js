@@ -100,7 +100,22 @@ export const strainExhaustion = lvl => Math.floor(lvl / 2);
 export function availableSpells(c) {
   const clsIds = new Set((c.classes || []).map(k => k.clsId).filter(Boolean));
   const subIds = new Set((c.classes || []).map(k => k.subId).filter(Boolean));
-  return L.all('spell').filter(s => (s.classes || []).some(x => clsIds.has(x)) || (s.subclasses || []).some(x => subIds.has(x)));
+  const picked = new Set((c.options || []).map(p => p.id));
+  return L.all('spell').filter(s => (s.classes || []).some(x => clsIds.has(x)) || (s.subclasses || []).some(x => subIds.has(x))
+    || (s.options || []).some(x => picked.has(x)));
+}
+// A spell tied to a class option this character picked (a Genie warlock's Djinni spells): the class row whose
+// subclass (or class) owns that option, so it works like that subclass's own spells
+function optionRow(c, s) {
+  if (!(s.options || []).length) return null;
+  const picked = new Set((c.options || []).map(p => p.id));
+  for (const id of s.options) {
+    if (!picked.has(id)) continue;
+    const o = L.get(id); if (!o) continue;
+    const k = (c.classes || []).find(r => (o.owners || []).some(w => w === r.subId || w === r.clsId));
+    if (k) return k;
+  }
+  return null;
 }
 // How a subclass's spells work: 'prepared' (always prepared: domains, oaths, circles, and every 2024 subclass),
 // 'known' (always known, not counted against spells known: 2014 Ranger and Sorcerer subclasses), or 'added'
@@ -119,6 +134,8 @@ export function alwaysPrepared(c, s) {
     const mode = subSpellMode(L.get(k.subId));
     if (mode !== 'added') return mode;
   }
+  const k = optionRow(c, s);
+  if (k?.subId) { const mode = subSpellMode(L.get(k.subId)); if (mode !== 'added') return mode; }
   return '';
 }
 // Which class's ability a spell uses (first matching class with a spellcasting ability)
@@ -127,6 +144,8 @@ export function spellClass(c, s) {
     const cls = L.get(k.clsId);
     if (cls && ((s.classes || []).includes(cls.id) || (s.subclasses || []).includes(k.subId))) return { k, cls };
   }
+  const k = optionRow(c, s), cls = k && L.get(k.clsId);
+  if (cls) return { k, cls };
   return null;
 }
 

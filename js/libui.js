@@ -87,6 +87,7 @@ export function entryHtml(e) {
     add('Range', esc(e.range)); add('Components', esc(e.components) + (e.material ? ` (${esc(e.material)})` : ''));
     add('Duration', (e.conc ? 'Concentration, ' : '') + esc(e.duration));
     add('Lists', [...(e.classes || []), ...(e.subclasses || [])].map(id => L.get(id)?.name).filter(Boolean).map(esc).join(', '));
+    if ((e.options || []).length) add('Only with', (e.options || []).map(id => L.get(id)).filter(Boolean).map(o => `${esc(o.name)}${o.group ? ` <small>(${esc(o.group)})</small>` : ''}`).join(', '));
   }
   if (e.type === 'boon') { add('Given to', e.given === 'party' ? 'The whole party' : (Array.isArray(e.given) ? e.given.map(id => ctx.chars?.().find(x => x.id === id)?.name).filter(Boolean).map(esc).join(', ') : '')); add('At each dawn', Number(e.dawnTemp) ? `${esc(e.dawnTemp)} temporary HP` : ''); }
   if (e.type === 'item') {
@@ -208,7 +209,7 @@ const FIELDS = {
     ['item', 'Magic item it makes (Replicate Magic Item)', 'miItem'], ['remind', 'Reminder', 'remindOne'], ['tables', 'Tables: random rolls (d6, d100…), by level, or plain', 'xtables'], ['note', 'Table Rules note', 'area']],
   spell: [['name', 'Name'], ['level', 'Level (0 = cantrip)', 'num'], ['school', 'School'], ['src', 'Book and page'], ['time', 'Casting time'], ['range', 'Range'],
     ['components', 'Components', 'text', 'V, S, M'], ['material', 'Material'], ['duration', 'Duration'], ['conc', 'Concentration', 'bool'], ['ritual', 'Ritual', 'bool'],
-    ['classes', 'Class spell lists', 'classMulti'], ['subclasses', 'Subclass lists (domain, oath, expanded spells)', 'subMulti'],
+    ['classes', 'Class spell lists', 'classMulti'], ['subclasses', 'Subclass lists (domain, oath, expanded spells)', 'subMulti'], ['options', 'Class option lists (only for characters who picked that option)', 'optMulti'],
     ['desc', 'Full text', 'area'], ['higher', 'At Higher Levels', 'area'], ['tables', 'Tables: random rolls (d6, d100…), by level, or plain', 'xtables'], ['note', 'Table Rules note', 'area']],
   background: [['name', 'Name'], ['src', 'Book and page'], ['skills', 'Skill proficiencies', 'skills'], ['tools', 'Tools'], ['languages', 'Languages'],
     ['feature.name', 'Feature name'], ['feature.text', 'Feature text', 'area'], ['feat', 'Assigned feat', 'featSel'], ['equipment', 'Equipment', 'area'], ['desc', 'Description', 'area'], ['tables', 'Tables: random rolls (d6, d100…), by level, or plain', 'xtables'], ['note', 'Table Rules note', 'area']],
@@ -255,6 +256,14 @@ function editorHtml(d) {
           <datalist id="dl-optgroups2">${[...new Set(L.all('option').map(o => o.group).filter(Boolean))].map(g => `<option value="${esc(g)}"></option>`).join('')}</datalist>`, { group: '', levels: {} })
         + '<p class="hint wide">Level: total picks from that level on. "2: 2, 5: 3" means 2 at level 2 and 3 from level 5. A subclass\'s count adds to its class\'s.</p>';
       case 'classMulti': return `<fieldset class="hf wide checks"><legend class="lbl">${label}</legend>${L.all('class').map(x => `<label class="chk"><input type="checkbox" data-fset="${path}" value="${x.id}" ${(v || []).includes(x.id) ? 'checked' : ''}><span>${esc(x.name)}</span></label>`).join('')}</fieldset>`;
+      // a spell only for characters who picked a class option (a Genie warlock's kind of genie)
+      case 'optMulti': {
+        const opts = L.all('option').filter(o => !o.infusion);
+        if (!opts.length && !(v || []).length) return '';
+        const groups = [...new Set(opts.map(o => o.group || 'Other'))].sort();
+        return `<fieldset class="hf wide checks"><legend class="lbl">${label}</legend>${groups.map(g => `<span class="lbl" style="width:100%;margin-top:6px">${esc(g)}</span>${opts.filter(o => (o.group || 'Other') === g).map(o => `<label class="chk"><input type="checkbox" data-fset="${path}" value="${o.id}" ${(v || []).includes(o.id) ? 'checked' : ''}><span>${esc(o.name)}</span></label>`).join('')}`).join('')}
+          <span class="hint">For spell lists that depend on a choice, like a Genie warlock's Dao, Djinni, Efreeti or Marid. Make the choice a class option first (Class options in the Library). These spells work like that option's subclass's own spells.</span></fieldset>`;
+      }
       case 'subMulti': return `<fieldset class="hf wide checks"><legend class="lbl">${label}</legend>${L.all('subclass').map(x => `<label class="chk"><input type="checkbox" data-fset="${path}" value="${x.id}" ${(v || []).includes(x.id) ? 'checked' : ''}><span>${esc(x.name)} <small>${esc(L.get(x.parent)?.name || '')}</small></span></label>`).join('')}<span class="hint">Whether these are always prepared, always known, or just added to the list to choose from is set on each subclass (under "How its subclass spells work").</span></fieldset>`;
       // a container: players can put things in it on their sheet. Backpack, Pouch, Sack, Basket and Chest are by default.
       case 'ctOn': return `<label class="hf chk boolf"><input type="checkbox" data-fbool="${path}" data-rerender ${R.libContainer(d) ? 'checked' : ''}><span>This is a container: players can put things in it</span></label>`;
