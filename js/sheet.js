@@ -1055,7 +1055,7 @@ function pageInventory(c) {
     <button class="btn small" type="button" data-act="consolidate">Consolidate into gold, silver, copper</button></div>
     <p class="hint">10 copper = 1 silver · 5 silver = 1 electrum · 2 electrum = 1 gold · 10 gold = 1 platinum. Consolidating leaves platinum alone.</p>`)}
   ${(c.magicItems || []).length ? panel('Magic items from your DM', `<div class="tablewrap"><table class="inv"><thead><tr><th>Item</th><th>Weight</th><th>Attunement</th></tr></thead><tbody>
-    ${c.magicItems.filter(m => !m.consumable || miLeft(c, m) > 0).map(m => `<tr><td><details class="mi"><summary><b>${esc(m.name)}</b>${m.consumable ? ` ×${miLeft(c, m)}` : ''}</summary><p class="sub">${esc(m.type || '')}</p>${notchBox(c, `mi.${m.cid}`, miNotch(c, m))}${fmt(m.desc)}</details></td><td class="num">${m.weight ? `${m.weight} lb` : '—'}</td><td>${m.attuned ? '<span class="attb">Attuned</span>' : esc(m.attune || 'None')}</td></tr>`).join('')}
+    ${c.magicItems.filter(m => !m.consumable || miLeft(c, m) > 0).map(m => `<tr><td><details class="mi"><summary><b>${esc(m.name)}</b>${m.consumable ? ` ×${miLeft(c, m)}` : ''}</summary><p class="sub">${esc(m.type || '')}</p>${m.consumable ? '' : miActs(c, m)}${notchBox(c, `mi.${m.cid}`, miNotch(c, m))}${fmt(m.desc)}</details></td><td class="num">${m.weight ? `${m.weight} lb` : '—'}</td><td>${m.attuned ? '<span class="attb">Attuned</span>' : esc(m.attune || 'None')}</td></tr>`).join('')}
     </tbody></table></div><p class="hint">Your DM manages these in the magic item app.</p>`, 'invcat') : ''}
   ${containersHtml(c)}
   <div class="invgrid">${cats}</div>`;
