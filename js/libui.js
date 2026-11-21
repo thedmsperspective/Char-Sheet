@@ -204,7 +204,7 @@ const FIELDS = {
     ['optionGroups', 'Class option choices (Maneuvers, Runes, Fighting Styles…)', 'optgroups'], ['table', 'Level table columns (1st to 20th, shown with the class\'s)', 'ctable'], ['tables', 'Other tables: random rolls (d6, d100…), your own levels, or plain', 'xtables'],
     ['features', 'Features', 'leveled'], ['desc', 'Description', 'area'], ['note', 'Table Rules note', 'area']],
   option: [['name', 'Name'], ['group', 'Group', 'groupText', 'Eldritch Invocations'], ['src', 'Book and page'], ['owners', 'Which classes and subclasses can choose it', 'ownerMulti'],
-    ['level', 'Class level needed (0 for none)', 'num'], ['reqOption', 'Requires another option first', 'optionSel'], ['prereq', 'Other prerequisite (shown, not checked)', 'text', 'The eldritch blast cantrip'],
+    ['level', 'Class level needed (0 for none)', 'num'], ['reqOption', 'Requires another option first', 'optionSel'], ['spells', "Comes with its own spells (shows on spells, under Class option lists)", 'bool'], ['prereq', 'Other prerequisite (shown, not checked)', 'text', 'The eldritch blast cantrip'],
     ['desc', 'Full text', 'area'], ['infusion', 'Infusion: an Artificer puts it into an item', 'bool'], ['infAttune', 'The infused item requires attunement', 'bool'],
     ['item', 'Magic item it makes (Replicate Magic Item)', 'miItem'], ['remind', 'Reminder', 'remindOne'], ['tables', 'Tables: random rolls (d6, d100…), by level, or plain', 'xtables'], ['note', 'Table Rules note', 'area']],
   spell: [['name', 'Name'], ['level', 'Level (0 = cantrip)', 'num'], ['school', 'School'], ['src', 'Book and page'], ['time', 'Casting time'], ['range', 'Range'],
@@ -258,13 +258,13 @@ function editorHtml(d) {
       case 'classMulti': return `<fieldset class="hf wide checks"><legend class="lbl">${label}</legend>${L.all('class').map(x => `<label class="chk"><input type="checkbox" data-fset="${path}" value="${x.id}" ${(v || []).includes(x.id) ? 'checked' : ''}><span>${esc(x.name)}</span></label>`).join('')}</fieldset>`;
       // a spell only for characters who picked a class option (a Genie warlock's kind of genie)
       case 'optMulti': {
-        const opts = L.all('option').filter(o => !o.infusion);
-        if (!opts.length && !(v || []).length) return '';
+        const opts = L.all('option').filter(o => (o.spells && !o.infusion) || (v || []).includes(o.id));
+        if (!opts.length) return `<div class="hf wide"><span class="lbl">${label}</span><span class="hint">For spell lists that depend on a choice, like a Genie warlock's kind of genie. Tick "Comes with its own spells" on those class options, and they show up here.</span></div>`;
         const groups = [...new Set(opts.map(o => o.group || 'Other'))].sort();
         return `<fieldset class="hf wide checks"><legend class="lbl">${label}</legend>${groups.map(g => `<span class="lbl" style="width:100%;margin-top:6px">${esc(g)}</span>${opts.filter(o => (o.group || 'Other') === g).map(o => `<label class="chk"><input type="checkbox" data-fset="${path}" value="${o.id}" ${(v || []).includes(o.id) ? 'checked' : ''}><span>${esc(o.name)}</span></label>`).join('')}`).join('')}
-          <span class="hint">For spell lists that depend on a choice, like a Genie warlock's Dao, Djinni, Efreeti or Marid. Make the choice a class option first (Class options in the Library). These spells work like that option's subclass's own spells.</span></fieldset>`;
+          <span class="hint">Only class options with "Comes with its own spells" ticked are listed. These spells work like that option's subclass's own spells.</span></fieldset>`;
       }
-      case 'subMulti': return `<fieldset class="hf wide checks"><legend class="lbl">${label}</legend>${L.all('subclass').map(x => `<label class="chk"><input type="checkbox" data-fset="${path}" value="${x.id}" ${(v || []).includes(x.id) ? 'checked' : ''}><span>${esc(x.name)} <small>${esc(L.get(x.parent)?.name || '')}</small></span></label>`).join('')}<span class="hint">Whether these are always prepared, always known, or just added to the list to choose from is set on each subclass (under "How its subclass spells work").</span></fieldset>`;
+      case 'subMulti': return `<fieldset class="hf wide checks"><legend class="lbl">${label}</legend>${L.all('subclass').filter(x => x.caster || L.get(x.parent)?.caster || (v || []).includes(x.id)).map(x => `<label class="chk"><input type="checkbox" data-fset="${path}" value="${x.id}" ${(v || []).includes(x.id) ? 'checked' : ''}><span>${esc(x.name)} <small>${esc(L.get(x.parent)?.name || '')}</small></span></label>`).join('')}<span class="hint">Only subclasses that cast spells are listed: any subclass of a spellcasting class, and ones set to make their class a spellcaster. Whether these are always prepared, always known, or just added to the list to choose from is set on each subclass (under "How its subclass spells work").</span></fieldset>`;
       // a container: players can put things in it on their sheet. Backpack, Pouch, Sack, Basket and Chest are by default.
       case 'ctOn': return `<label class="hf chk boolf"><input type="checkbox" data-fbool="${path}" data-rerender ${R.libContainer(d) ? 'checked' : ''}><span>This is a container: players can put things in it</span></label>`;
       case 'ctCap': {
